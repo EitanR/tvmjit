@@ -1,0 +1,202 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+
+(!let _G _G)
+(!let pairs pairs)
+(!let pcall pcall)
+(!let print print)
+(!let tostring tostring)
+(!let type type)
+(!let exit (!index os "exit"))
+
+(!let m ())
+
+(!define curr_test 0)
+(!define expected_tests 0)
+(!define todo_upto 0)
+(!define todo_reason)
+
+(!let find (!lambda (s substring)
+                (!return (!callmeth s find substring 0 !true))))
+
+(!assign (!index m "plan") (!lambda (arg)
+                (!assign expected_tests arg)
+                (!call print (!concat "1.." arg))))
+
+(!assign (!index m "skip_all") (!lambda (reason)
+                (!define out "1..0")
+                (!if reason
+                    (!assign out (!mconcat out " # SKIP " reason)))
+                (!call print out)
+                (!call exit 0)))
+
+(!let ok (!lambda (test name)
+                (!assign curr_test (!add curr_test 1))
+                (!define out "")
+                (!if (!not test)
+                     (!assign out "not "))
+                (!assign out (!mconcat out "ok " curr_test))
+                (!if name
+                     (!assign out (!mconcat out " - " name)))
+                (!if (!and todo_reason
+                           (!ge todo_upto curr_test))
+                     (!assign out (!mconcat out  " # TODO " todo_reason)))
+                (!call print out)))
+(!assign (!index m "ok") ok)
+
+(!assign (!index m "nok") (!lambda (test name)
+                                   (!call ok (!not test) name)))
+
+(!let diag (!lambda (msg)
+                (!call print (!concat "# " msg))))
+(!assign (!index m "diag") diag)
+
+(!assign (!index m "is") (!lambda (got expected name)
+                (!let pass (!eq got expected))
+                (!call ok pass name)
+                (!if (!not pass)
+                     (!do (!call diag (!concat "         got: " (!call tostring got)))
+                          (!call diag (!concat "    expected: " (!call tostring expected)))))))
+
+(!assign (!index m "isnt") (!lambda (got expected name)
+                (!let pass (!ne got expected))
+                (!call ok pass name)
+                (!if (!not pass)
+                     (!do (!call diag (!concat " got: " (!call tostring got)))
+                          (!call diag " expected: anything else")))))
+
+(!assign (!index m "contains") (!lambda (got substring name)
+                (!let pass (!call find (!call tostring got) substring))
+                (!call ok pass name)
+                (!if (!not pass)
+                     (!do (!call diag (!concat "    searched: " (!call tostring got)))
+                          (!call diag (!concat "  can't find: " (!call tostring substring)))))))
+
+(!assign (!index m "like") (!lambda (got pattern name)
+                (!if (!ne (!call type pattern) "string")
+                     (!do (!call ok !false name)
+                          (!call diag (!concat "pattern isn't a string : " (!call tostring pattern)))
+                          (!return)))
+                (!assign got (!call tostring got))
+                (!let pass (!callmeth got match pattern))
+                (!call ok pass name)
+                (!if (!not pass)
+                     (!do (!call diag (!mconcat "                  '" got "'"))
+                          (!call diag (!mconcat "    doesn't match '" pattern "'"))))))
+
+(!assign (!index m "type_ok") (!lambda (val t name)
+                (!if (!eq (!call type val) t)
+                     (!call ok !true name)
+                     (!do (!call ok !false name)
+                          (!call diag (!mconcat "    " (!call tostring val) " isn't a '" t "' it's '" (!call type val) "'"))))))
+
+(!assign (!index m "pass") (!lambda (name)
+                (!call ok !true name)))
+
+(!assign (!index m "fail") (!lambda (name)
+                (!call ok !false name)))
+
+(!assign (!index m "eq_array") (!lambda (got expected name)
+                (!loop i 0 (!sub (!len expected) 1) 1
+                        (!let v (!index expected i))
+                        (!let val (!index got i))
+                        (!if (!ne val v)
+                             (!do (!call ok !false name)
+                                  (!call diag (!concat "    at index: " (!call tostring i)))
+                                  (!call diag (!concat "         got: " (!call tostring val)))
+                                  (!call diag (!concat "    expected: " (!call tostring v)))
+                                  (!return))))
+                (!let extra (!sub (!len got) (!len expected)))
+                (!if (!ne extra 0)
+                     (!do (!call ok !false name)
+                          (!call diag (!mconcat "    " (!call tostring extra) " unexpected item(s)")))
+                     (!call ok !true name))))
+
+(!assign (!index m "is_deeply") (!lambda (got expected name)
+                (!cond ((!ne (!call type got) "table")
+                        (!call ok !false name)
+                        (!call diag (!concat "got value isn't a table : " (!call tostring got)))
+                        (!return))
+                       ((!ne (!call type expected) "table")
+                        (!call ok !false name)
+                        (!call diag (!concat "expected value isn't a table : " (!call tostring expected)))
+                        (!return)))
+                (!define msg1)
+                (!define msg2)
+                (!let seen ())
+
+                (!letrec deep_eq (!lambda (t1 t2 key_path)
+                                (!if (!or (!eq t1 t2) (!index seen t1))
+                                     (!return !true))
+                                (!assign (!index seen t1) !true)
+                                (!for (k v2) ((!call pairs t2))
+                                      (!let v1 (!index t1 k))
+                                      (!cond ((!and (!eq (!call type v1) "table")
+                                                    (!eq (!call type v2) "table"))
+                                              (!let r (!call deep_eq v1 v2 (!mconcat key_path "." (!call tostring k))))
+                                              (!if (!not r)
+                                                   (!return !false)))
+                                             ((!ne v1 v2)
+                                              (!assign key_path (!mconcat key_path "." (!call tostring k)))
+                                              (!assign msg1 (!mconcat "     got" key_path ": " (!call tostring v1)))
+                                              (!assign msg2 (!mconcat "expected" key_path ": " (!call tostring v2)))
+                                              (!return !false))))
+                                (!for (k) ((!call pairs t1))
+                                      (!let v2 (!index t2 k))
+                                      (!cond ((!eq v2 !nil)
+                                              (!assign key_path (!mconcat key_path "." (!call tostring k)))
+                                              (!assign msg1 (!mconcat "     got" key_path ": " (!call tostring (!index t1 k))))
+                                              (!assign msg2 (!mconcat "expected" key_path ": " (!call tostring v2)))
+                                              (!return !false))))
+                                      (!return !true)))
+
+                (!let pass (!call deep_eq got expected ""))
+                (!call ok pass name)
+                (!if (!not pass)
+                     (!do (!call diag "    Tables begin differing at:")
+                          (!call diag (!concat "    " msg1))
+                          (!call diag (!concat "    " msg2))))))
+
+(!assign (!index m "error_contains") (!lambda (code substring name)
+                (!let (r msg) ((!call pcall code)))
+                (!if r
+                     (!do (!call ok !false name)
+                          (!call diag "    unexpected success"))
+                     (!call (!index m "contains") msg substring name))))
+
+(!assign (!index m "error_like") (!lambda (code pattern name)
+                (!let (r msg) ((!call pcall code)))
+                (!if r
+                     (!do (!call ok !false name)
+                          (!call diag "    unexpected success"))
+                     (!call (!index m "like") msg pattern name))))
+
+(!assign (!index m "lives_ok") (!lambda (code name)
+                (!let (r msg) ((!call pcall code)))
+                (!call ok r name)
+                (!if (!not r)
+                     (!call diag (!concat " " msg)))))
+
+(!assign (!index m "skip") (!lambda (reason count)
+                (!assign count (!or count 1))
+                (!define name "# skip")
+                (!if reason
+                     (!assign name (!mconcat name " " reason)))
+                (!loop i 1 count 1
+                        (!call ok !true name))))
+
+(!assign (!index m "skip_rest") (!lambda (reason)
+                (!call (!index m "skip") reason (!sub expected_tests curr_test))))
+
+(!assign (!index m "todo") (!lambda (reason count)
+                (!assign count (!or count 1))
+                (!assign todo_upto (!add curr_test count))
+                (!assign todo_reason reason)))
+
+(!for (k v) ((!call pairs m)) ; injection
+      (!assign (!index _G k) v))
+
+(!return m)
