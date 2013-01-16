@@ -737,3 +737,17 @@ jit/dis_x86.tp: jit/dis_x86.lua lua/lunokhod.tp
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
 
 ##############################################################################
+# Test targets.
+##############################################################################
+
+export TVM_INIT= (!assign RUN_TVM "$(RUN_TVMJIT)")
+
+sanity:
+	prove --exec="$(RUN_TVMJIT)" ../t/0*.t
+
+test:
+	prove --exec="$(RUN_TVMJIT)" ../t/*.t
+
+.PHONY: sanity test
+
+##############################################################################
