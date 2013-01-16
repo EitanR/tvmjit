@@ -1,0 +1,112 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+
+(!call require "TAP")
+
+(!call plan 68)
+
+(!call eq_array (!call parse "   [ true ]   ") (!true) "true")
+(!call eq_array (!call parse "   [ false ]  ") (!false) "false")
+(!call eq_array (!call parse "   [ null ]   ") (!nil) "nil")
+(!call eq_array (!call parse "   [ -42 ]    ") (-42) "-42")
+(!call eq_array (!call parse "   [ 3.14 ]   ") (3.14) "3.14")
+(!call eq_array (!call parse "   [ \"str\" ]  ") ("str") "str")
+(!call eq_array (!call parse "   [ \"\" ]  ") ("") "empty string")
+(!call eq_array (!call parse "   [ \"\\\"\" ]  ") ("\"") "quote")
+(!call eq_array (!call parse "   [ \"\\\\\" ]  ") ("\\") "backslash")
+(!call eq_array (!call parse "   [ \"a\\tb\" ]  ") ("a\tb") "tab")
+(!call eq_array (!call parse "   [ \"a\\u20acb\" ]  ") ("a€b") "\\u")
+(!call eq_array (!call parse "   []   ") () "empty array")
+(!call eq_array (!call parse "   {}   ") () "empty object")
+(!call eq_array (!call parse "   [ 1, 2, 3, 4 ] ") (1 2 3 4) "array")
+(!call is_deeply (!call parse "\
+    {\
+        \"a\" : 1,\
+        \"b\" : 2,\
+        \"c\" : 3\
+    }\
+") ("a": 1 "b": 2 "c": 3) "object")
+
+(!call error_contains (!lambda () (!call parse " [] extra  ")) ": <eos> expected at")
+(!call error_contains (!lambda () (!call parse " true      ")) ": object/array expected at top")
+(!call error_contains (!lambda () (!call parse " [1, bare] ")) ": unexpected character at")
+(!call error_contains (!lambda () (!call parse " [ 1; 2 ]  ")) ": ',' expected at")
+(!call error_contains (!lambda () (!call parse " { \"a\":1 ; ")) ": ',' expected at")
+(!call error_contains (!lambda () (!call parse " { \"a\";1   ")) ": ':' expected at")
+(!call error_contains (!lambda () (!call parse " { bare:1  ")) ": <string> expected at")
+(!if no_duplicate (!call todo no_duplicate 1))
+(!call error_contains (!lambda () (!call parse " { \"a\":1, \"b\":2, \"a\":3 } ")) ": duplicated key ")
+
+(!define t (!call parse "\
+    {\
+        \"Image\": {\
+            \"Width\":  800,\
+            \"Height\": 600,\
+            \"Title\":  \"View from 15th Floor\",\
+            \"Thumbnail\": {\
+                \"Url\":    \"http://www.example.com/image/481989943\",\
+                \"Height\": 125,\
+                \"Width\":  \"100\"\
+            },\
+            \"IDs\": [116, 943, 234, 38793]\
+        }\
+    }\
+"))
+(!call type_ok t "table" "Image")
+(!call is (!index (!index t "Image") "Width") 800)
+(!call is (!index (!index t "Image") "Height") 600)
+(!call is (!index (!index t "Image") "Title") "View from 15th Floor")
+(!call is (!index (!index (!index t "Image") "Thumbnail") "Url") "http://www.example.com/image/481989943")
+(!call is (!index (!index (!index t "Image") "Thumbnail") "Height") 125)
+(!call is (!index (!index (!index t "Image") "Thumbnail") "Width") "100")
+(!call eq_array (!index (!index t "Image") "IDs") (116 943 234 38793))
+
+(!define t (!call parse "\
+    [\
+        {\
+            \"precision\": \"zip\",\
+            \"Latitude\":  37.7668,\
+            \"Longitude\": -122.3959,\
+            \"Address\":   \"\",\
+            \"City\":      \"SAN FRANCISCO\",\
+            \"State\":     \"CA\",\
+            \"Zip\":       \"94107\",\
+            \"Country\":   \"US\"\
+        },\
+        {\
+            \"precision\": \"zip\",\
+            \"Latitude\":  37.371991,\
+            \"Longitude\": -122.026020,\
+            \"Address\":   \"\",\
+            \"City\":      \"SUNNYVALE\",\
+            \"State\":     \"CA\",\
+            \"Zip\":       \"94085\",\
+            \"Country\":   \"US\"\
+        }\
+    ]\
+"))
+(!call type_ok t "table" "Coord")
+
+(!loop i 1 3 1
+        (!let fname (!mconcat "../t/json/test/pass" i ".json"))
+        (!let f (!call (!index io "open") fname))
+        (!let content (!callmeth f read "*a"))
+        (!callmeth f close)
+        (!call ok (!call parse content) fname)
+)
+
+(!let TODO (18: !true))
+(!loop i 1 33 1
+        (!let fname (!mconcat "../t/json/test/fail" i ".json"))
+        (!let f (!call (!index io "open") fname))
+        (!let content (!callmeth f read "*a"))
+        (!callmeth f close)
+        (!let (r msg) ((!call pcall parse content)))
+        (!if (!index TODO i) (!call todo content 1))
+        (!call nok r fname)
+;        (!if r (!call diag content))
+)
+

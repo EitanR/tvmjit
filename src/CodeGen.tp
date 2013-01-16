@@ -1,0 +1,274 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+;   Major portions taken verbatim or adapted from the lua-CodeGen library.
+;   Copyright (c) 2010-2011 Francois Perrad
+;
+
+
+(!let setmetatable setmetatable)
+(!let tonumber tonumber)
+(!let tostring tostring)
+(!let type type)
+(!let char (!index string "char"))
+(!let unpack (!index table "unpack"))
+(!let tconcat (!index table "concat"))
+(!let any (!index peg "any"))
+(!let capture (!index peg "capture"))
+(!let choice (!index peg "choice"))
+(!let not_followed_by (!index peg "not_followed_by"))
+(!let eos (!index peg "eos"))
+(!let except (!index peg "except"))
+(!let grammar (!index peg "grammar"))
+(!let literal (!index peg "literal"))
+(!let many (!index peg "many"))
+(!let optional (!index peg "optional"))
+(!let position (!index peg "position"))
+(!let range (!index peg "range"))
+(!let replace (!index peg "replace"))
+(!let sequence (!index peg "sequence"))
+(!let set (!index peg "set"))
+(!let some (!index peg "some"))
+(!let subst (!index peg "subst"))
+(!let variable (!index peg "variable"))
+
+(!define m ())
+
+(!let gsub (!lambda (s patt repl)
+                (!let p (!call subst (!call many (!call choice (!call replace patt repl) (!call any)))))
+                (!return (!callmeth p match s))))
+
+(!let split (!lambda (s sep func)
+                (!let elem (!call replace (!call capture (!call many (!call except (!call any) sep))) func))
+                (!let p (!call sequence elem (!call many (!call sequence sep elem))))
+                (!callmeth p match s)))
+
+(!let render (!lambda (val sep formatter)
+                (!assign formatter (!or formatter tostring))
+                (!if (!eq val !nil)
+                     (!return ""))
+                (!if (!eq (!call type val) "table")
+                     (!do (!let t ())
+                          (!loop i 0 (!sub (!len val) 1) 1
+                                (!assign (!index t i) (!call formatter (!index val i))))
+                          (!return (!call tconcat t sep)))
+                     (!return (!call formatter val)))))
+
+(!let special ("a":  "\a"
+               "b":  "\b"
+               "f":  "\f"
+               "n":  "\n"
+               "r":  "\r"
+               "t":  "\t"
+               "v":  "\v"
+               "\\": "\\"
+               "\"": "\""
+               "'":  "'"))
+
+(!let digit (!call range "09"))
+(!let escape_digit (!call sequence (!call literal "\\")
+                                   (!call capture (!call sequence digit
+                                                                  (!call optional digit)
+                                                                  (!call optional digit)))))
+(!let escape_special (!call sequence (!call literal "\\")
+                                     (!call capture (!call set "abfnrtv\\\"'"))))
+
+(!let unescape (!lambda (str)
+                (!assign str (!call gsub str escape_digit (!lambda (s)
+                                                (!return (!call char (!mod (!call tonumber s) 256))))))
+                (!return (!call gsub str escape_special special))))
+
+(!let dot (!call literal "."))
+(!let space (!call set " \t"))
+(!let newline (!call literal "\n"))
+(!let newline_anywhere (!call grammar ((!call choice newline (!call sequence (!call any) (!call variable 0))))))
+(!let only_space (!call sequence (!call many space) (!call eos)))
+(!let newline_end (!call sequence newline (!call eos)))
+(!let indent_needed (!call sequence newline (!call not_followed_by newline)))
+
+(!let vname_capture (!call sequence (!call literal "${")
+                                    (!call capture (!call sequence (!call range "AZ" "az" "__")
+                                                                   (!call many (!call range "09" "AZ" "az" "__" ".."))))
+                                    (!call position)))
+(!let separator_simple_quote_capture (!call sequence (!call literal "'")
+                                                     (!call capture (!call many (!call except (!call any) (!call literal "'"))))
+                                                     (!call literal "'")))
+(!let separator_double_quote_capture (!call sequence (!call literal "\"")
+                                                     (!call capture (!call many (!call except (!call any) (!call literal "\""))))
+                                                     (!call literal "\"")))
+(!let separator_capture (!call sequence (!call literal ";")
+                                        (!call some space)
+                                        (!call literal "separator")
+                                        (!call many space)
+                                        (!call literal "=")
+                                        (!call many space)
+                                        (!call choice separator_simple_quote_capture separator_double_quote_capture)
+                                        (!call many space)
+                                        (!call position)))
+(!let identifier_capture (!call capture (!call sequence (!call range "AZ" "az" "__")
+                                                        (!call many (!call range "09" "AZ" "az" "__")))))
+(!let format_capture (!call sequence (!call literal ";")
+                                     (!call some space)
+                                     (!call literal "format")
+                                     (!call many space)
+                                     (!call literal "=")
+                                     (!call many space)
+                                     identifier_capture
+                                     (!call many space)
+                                     (!call position)))
+(!let data_end (!call literal "}"))
+(!let include_end (!call literal "()}"))
+(!let if_capture (!call sequence (!call literal "?")
+                                 identifier_capture
+                                 (!call literal "()}")))
+(!let if_else_capture (!call sequence (!call literal "?")
+                                      identifier_capture
+                                      (!call literal "()!")
+                                      identifier_capture
+                                      (!call literal "()}")))
+(!let map_capture (!call sequence (!call literal "/")
+                                  identifier_capture
+                                  (!call literal "()")
+                                  (!call position)))
+(!let map_end (!call literal "}"))
+
+(!let subst (!call sequence (!call literal "$")
+                            (!call grammar ((!call sequence (!call literal "{")
+                                                            (!call many (!call choice (!call except (!call any) (!call set "{}"))
+                                                                                      (!call variable 0)))
+                                                            (!call literal "}"))))))
+(!let indent_capture (!call sequence (!call capture (!call many space))
+                                     subst
+                                     (!call eos)))
+
+(!define new)
+(!let eval (!lambda (self name)
+    (!define cyclic ())
+    (!define msg ())
+
+    (!letrec interpolate (!lambda (self template tname)
+        (!if (!ne (!call type template) "string")
+             (!return !nil))
+        (!define lineno 1)
+
+        (!let add_message (!lambda (!vararg)
+            (!assign (!index msg (!len msg)) (!mconcat tname ":" lineno ": " (!call tconcat (!vararg))))))
+
+        (!let get_value (!lambda (vname)
+            (!define t self)
+            (!call split vname dot (!lambda (w)
+                            (!if (!eq (!call type t) "table")
+                                 (!assign t (!index t w))
+                                 (!do (!call add_message vname " is invalid")
+                                      (!assign t !nil)))))
+            (!return t)))       ; get_value
+
+        (!let interpolate_line (!lambda (line)
+            (!let get_repl (!lambda (capt)
+                (!let apply (!lambda (self tmpl)
+                    (!if (!index cyclic tmpl)
+                        (!do (!call add_message "cyclic call of " tmpl)
+                             (!return capt)))
+                    (!assign (!index cyclic tmpl) !true)
+                    (!define result (!call interpolate self (!index self tmpl) tmpl))
+                    (!assign (!index cyclic tmpl) !nil)
+                    (!if (!eq result !nil)
+                         (!do (!call add_message tmpl " is not a template")
+                              (!return capt)))
+                    (!return result)))  ; apply
+
+                (!define (capt1 pos) ((!callmeth vname_capture match capt 0)))
+                (!if (!not capt1)
+                     (!do (!call add_message capt " does not match")
+                          (!return capt)))
+                (!define (sep pos_sep) ((!callmeth separator_capture match capt pos)))
+                (!if sep
+                     (!assign sep (!call unescape sep)))
+                (!define (fmt pos_fmt) ((!callmeth format_capture match capt (!or pos_sep pos))))
+                (!if (!callmeth data_end match capt (!or (!or pos_fmt pos_sep) pos))
+                     (!if fmt
+                          (!do (!define formatter (!index self fmt))
+                               (!if (!ne (!call type formatter) "function")
+                                    (!do (!call add_message fmt " is not a formatter")
+                                         (!return capt)))
+                               (!return (!call render (!call get_value capt1) sep formatter)))
+                          (!return (!call render (!call get_value capt1) sep))))
+                (!if (!callmeth include_end match capt pos)
+                     (!return (!call apply self capt1)))
+                (!define capt2 (!callmeth if_capture match capt pos))
+                (!if capt2
+                     (!if (!call get_value capt1)
+                          (!return (!call apply self capt2))
+                          (!return "")))
+                (!define (capt2 capt3) ((!callmeth if_else_capture match capt pos)))
+                (!if (!and capt2 capt3)
+                     (!if (!call get_value capt1)
+                          (!return (!call apply self capt2))
+                          (!return (!call apply self capt3))))
+                (!define (capt2 pos) ((!callmeth map_capture match capt pos)))
+                (!if capt2
+                     (!do (!define (sep pos_sep) ((!callmeth separator_capture match capt pos)))
+                          (!if sep
+                               (!assign sep (!call unescape sep)))
+                          (!if (!callmeth map_end match capt (!or pos_sep pos))
+                               (!do (!define array (!call get_value capt1))
+                                    (!if (!eq array !nil)
+                                         (!return ""))
+                                    (!if (!ne (!call type array) "table")
+                                         (!do (!call add_message capt1 " is not a table")
+                                              (!return capt)))
+                                    (!define results ())
+                                    (!loop i 0 (!sub (!len array) 1) 1
+                                            (!define item (!index array i))
+                                            (!if (!ne (!call type item) "table")
+                                                 (!assign item ("it": item)))
+                                            (!define result (!call apply (!call new item self) capt2))
+                                            (!assign (!index results (!len results)) result)
+                                            (!if (!eq result capt)
+                                                 (!break)))
+                                   (!return (!call tconcat results sep))))))
+                (!call add_message capt " does not match")
+                (!return capt)))        ; get_repl
+
+            (!define indent (!callmeth indent_capture match line))
+            (!define result (!call gsub line subst get_repl))
+            (!if indent
+                 (!do (!assign result (!call gsub result newline_end ""))
+                      (!if (!ne indent "")
+                           (!assign result (!call gsub result indent_needed (!concat "\n" indent))))))
+            (!return result)))  ; interpolate_line
+
+        (!if (!callmeth newline_anywhere match template)
+             (!do (!define results ())
+                  (!call split template newline (!lambda (line)
+                                (!define result (!call interpolate_line line))
+                                (!if (!or (!eq result line) (!not (!callmeth only_space match result)))
+                                     (!assign (!index results (!len results)) result))
+                                (!assign lineno (!add lineno 1))))
+                  (!return (!call tconcat results "\n")))
+             (!return (!call interpolate_line template)))))     ; interpolate
+
+    (!define val (!index self name))
+    (!if (!eq (!call type val) "string")
+         (!return (!call unpack ((!call interpolate self val name)
+                                 (!or (!and (!gt (!len msg) 0) (!call tconcat msg "\n")) !nil))))
+         (!return (!call render val)))))        ; eval
+
+(!assign new (!lambda (env !vararg)
+                (!define obj ((!or env !vararg) !vararg))
+                (!call setmetatable obj ("__tostring": (!lambda () (!return (!index m "_NAME")))
+                                         "__call": (!lambda (!vararg) (!return (!call eval !vararg)))
+                                         "__index": (!lambda (t k)
+                                                        (!loop i 0 (!sub (!len t) 1) 1
+                                                                (!define v (!index (!index t i) k))
+                                                                (!if (!ne v !nil)
+                                                                     (!return v))))))
+                (!return obj)))
+(!assign (!index m "new") new)
+
+(!call setmetatable m ("__call": (!lambda (func !vararg) (!return (!call new !vararg)))))
+
+(!assign (!index m "_NAME") "CodeGen")
+(!return m)

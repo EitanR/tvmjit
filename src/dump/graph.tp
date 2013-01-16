@@ -1,0 +1,54 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+
+(!let error error)
+(!let pairs pairs)
+(!let setmetatable setmetatable)
+(!let tostring tostring)
+(!let type type)
+(!let quote (!index string "quote"))
+(!let tconcat (!index table "concat"))
+
+
+(!let dumpers (!call setmetatable () ("__index": (!lambda (t k)
+                (!call error (!mconcat "dump '" k "' is unimplemented"))))))
+
+(!assign (!index dumpers "nil") (!lambda ()
+                (!return "!nil")))
+
+(!assign (!index dumpers "boolean") (!lambda (bool)
+                (!if bool (!return "!true") (!return "!false"))))
+
+(!assign (!index dumpers "number") (!lambda (num)
+                (!cond ((!ne num num)           (!return "(!div 0 0)"))
+                       ((!eq num (!div 1 0))    (!return "(!div 1 0)"))
+                       ((!eq num (!div -1 0))   (!return "(!div -1 0)"))
+                       (!true                   (!return (!call tostring num))))))
+
+(!assign (!index dumpers "string") (!lambda (str)
+                (!return (!call quote str))))
+
+(!assign (!index dumpers "table") (!lambda (tbl varname saved buffer)
+                (!cond ((!index saved tbl)
+                        (!return (!index saved tbl))))
+                (!cond ((!not varname)
+                        (!assign (!index buffer "i") (!add (!index buffer "i") 1))
+                        (!assign varname (!concat "VAL" (!index buffer "i")))
+                        (!assign (!index buffer (!len buffer)) (!mconcat "(!let " varname " ())\n")))
+                       (!true
+                        (!assign (!index buffer (!len buffer)) (!mconcat "(!assign " varname " ())\n"))))
+                (!assign (!index saved tbl) varname)
+                (!for (k v) ((!call pairs tbl))
+                        (!let kname (!mconcat "(!index " varname " " (!call (!index dumpers (!call1 type k)) k !nil saved buffer) ")"))
+                        (!let vname (!call (!index dumpers (!call1 type v)) v kname saved buffer))
+                        (!assign (!index buffer (!len buffer)) (!mconcat "(!assign " kname " " vname ")\n")))
+                (!return varname)))
+
+(!return (!lambda (data)
+                (!let buffer ("i": 0))
+                (!let varname (!call (!index dumpers (!call1 type data)) data !nil () buffer))
+                (!assign (!index buffer (!len buffer)) (!mconcat "(!return " varname ")"))
+                (!return (!call tconcat buffer))))

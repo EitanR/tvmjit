@@ -1,0 +1,19 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+;   Major portions taken verbatim or adapted from the lua-CodeGen library.
+;   Copyright (c) 2010-2011 Francois Perrad
+;
+
+(!let CodeGen (!call require "CodeGen"))
+
+(!return (!call CodeGen ("top": "\
+begin\
+    ${data/inner()}\
+end\
+"
+                         "inner": "    print(\"${name()} = ${value}\");\
+")))
+

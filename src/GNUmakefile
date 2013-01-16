@@ -748,6 +748,48 @@ sanity:
 test:
 	prove --exec="$(RUN_TVMJIT)" ../t/*.t
 
-.PHONY: sanity test
+test-dump:
+	prove --exec="$(RUN_TVMJIT)" ../t/dump/*.t
+
+test-codegen:
+	prove --exec="$(RUN_TVMJIT)" ../t/CodeGen/*.t
+
+json/parser_recdescent.tp: json/parser_recdescent.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+json/translator_recdescent.tp: json/translator_recdescent.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+json/grammar.tp: json/grammar.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+json/parser_peg.tp: json/parser_peg.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+json/translator_peg.tp: json/translator_peg.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+../t/json/test.zip:
+	cd ../t/json && wget http://www.json.org/JSON_checker/test.zip
+
+../t/json/test: ../t/json/test.zip
+	cd ../t/json && unzip test.zip && touch test
+
+test-json: json/parser_recdescent.tp \
+           json/translator_recdescent.tp \
+           json/grammar.tp \
+           json/parser_peg.tp \
+           json/translator_peg.tp \
+           ../t/json/test
+	prove --exec="$(RUN_TVMJIT)" ../t/json/*.t
+
+fulltest: test test-codegen test-dump test-json
+
+.PHONY: sanity test test-dump test-codegen test-json fulltest
 
 ##############################################################################

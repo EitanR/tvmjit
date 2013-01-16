@@ -1,0 +1,73 @@
+
+;
+;   TvmJIT : <http://github.com/fperrad/tvmjit/>
+;   Copyright (C) 2013 Francois Perrad.
+;
+
+(!let error error)
+(!let pairs pairs)
+(!let setmetatable setmetatable)
+(!let tostring tostring)
+(!let type type)
+(!let quote (!index string "quote"))
+(!let tconcat (!index table "concat"))
+
+
+(!let dumpers (!call setmetatable () ("__index": (!lambda (t k)
+                (!call error (!mconcat "dump '" k "' is unimplemented"))))))
+
+(!assign (!index dumpers "nil") (!lambda (buffer)
+                (!assign (!index buffer (!len buffer)) "!nil")))
+
+(!assign (!index dumpers "boolean") (!lambda (buffer bool)
+                (!if bool
+                     (!assign (!index buffer (!len buffer)) "!true")
+                     (!assign (!index buffer (!len buffer)) "!false"))))
+
+(!assign (!index dumpers "number") (!lambda (buffer num)
+                (!cond ((!ne num num)           (!assign (!index buffer (!len buffer)) "(!div 0 0)"))
+                       ((!eq num (!div 1 0))    (!assign (!index buffer (!len buffer)) "(!div 1 0)"))
+                       ((!eq num (!div -1 0))   (!assign (!index buffer (!len buffer)) "(!div -1 0)"))
+                       (!true                   (!assign (!index buffer (!len buffer)) (!call tostring num))))))
+
+(!assign (!index dumpers "string") (!lambda (buffer str)
+                (!assign (!index buffer (!len buffer)) (!call quote str))))
+
+(!assign (!index dumpers "table") (!lambda (buffer tbl seen)
+                (!if (!index seen tbl)
+                     (!call error "cycle detected"))
+                (!assign (!index seen tbl) !true)
+                (!define (is_map n max) (!false 0 0))
+                (!for (k) ((!call pairs tbl))
+                        (!if (!and (!eq (!call1 type k) "number") (!ge k 0))
+                             (!if (!gt k max)
+                                  (!assign max k))
+                             (!assign is_map !true))
+                        (!assign n (!add n 1)))
+                (!if (!gt max (!mul 2 n))       ; sparse array
+                     (!assign is_map !true))
+                (!assign (!index buffer (!len buffer)) "(")
+                (!define not_first !false)
+                (!if is_map
+                     (!for (k v) ((!call pairs tbl))
+                            (!if not_first
+                                 (!assign (!index buffer (!len buffer)) " "))
+                            (!call (!index dumpers (!call1 type k)) buffer k seen)
+                            (!assign (!index buffer (!len buffer)) ":")
+                            (!call (!index dumpers (!call1 type v)) buffer v seen)
+                            (!assign (!index buffer (!len buffer)) " ")
+                            (!assign not_first !true))
+                     (!loop i 0 max 1
+                            (!if not_first
+                                 (!assign (!index buffer (!len buffer)) " "))
+                            (!let v (!index tbl i))
+                            (!call (!index dumpers (!call1 type v)) buffer v seen)
+                            (!assign (!index buffer (!len buffer)) " ")
+                            (!assign not_first !true)))
+                (!assign (!index buffer (!len buffer)) ")")))
+
+(!return (!lambda (data)
+                (!let buffer ("(!return "))
+                (!call (!index dumpers (!call1 type data)) buffer data ())
+                (!assign (!index buffer (!len buffer)) ")")
+                (!return (!call tconcat buffer))))
