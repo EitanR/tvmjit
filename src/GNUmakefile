@@ -565,7 +565,7 @@ E= @echo
 # Make targets.
 ##############################################################################
 
-default all:	$(TARGET_T) $(LIB_JIT)
+default all:	$(TARGET_T) $(LIB_JIT) lua/lua0.tp
 
 amalg:
 	@grep "^[+|]" ljamalg.c
@@ -691,6 +691,12 @@ lua/lunokhod.tp: lua/lunokhod.lua
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp lua/lunokhod.lua > lua/lunokhod.j
 	$(Q)cp lua/lunokhod.j lua/lunokhod.tp
 	$(Q)rm lua/lunokhod.j
+
+lua/lua0.tp: lua/lua0.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)echo "#!/usr/local/bin/tvmjit" > $@
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
+	$(Q)chmod +x $@
 
 jit/vmdef.tp: jit/vmdef.lua lua/lunokhod.tp
 	$(E) "GEN     $@"
