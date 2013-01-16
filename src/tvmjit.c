@@ -1,9 +1,11 @@
 /*
-** LuaJIT frontend. Runs commands, scripts, read-eval-print (REPL) etc.
-** Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+** TvmJIT frontend. Runs commands, scripts, read-eval-print (REPL) etc.
+** Copyright (C) 2013 Francois Perrad.
 **
+** Major parts taken verbatim from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
 #include <stdio.h>
@@ -15,7 +17,8 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
-#include "luajit.h"
+#include "tvmjit.h"
+#include "tvmconf.h"
 
 #include "lj_arch.h"
 
@@ -67,8 +70,8 @@ static void print_usage(void)
   "  -e chunk  Execute string " LUA_QL("chunk") ".\n"
   "  -l name   Require library " LUA_QL("name") ".\n"
   "  -b ...    Save or list bytecode.\n"
-  "  -j cmd    Perform LuaJIT control command.\n"
-  "  -O[opt]   Control LuaJIT optimizations.\n"
+  "  -j cmd    Perform TvmJIT control command.\n"
+  "  -O[opt]   Control TvmJIT optimizations.\n"
   "  -i        Enter interactive mode after executing " LUA_QL("script") ".\n"
   "  -v        Show version information.\n"
   "  -E        Ignore environment variables.\n"
@@ -131,7 +134,7 @@ static int docall(lua_State *L, int narg, int clear)
 
 static void print_version(void)
 {
-  fputs(LUAJIT_VERSION " -- " LUAJIT_COPYRIGHT ". " LUAJIT_URL "\n", stdout);
+  fputs(TVMJIT_VERSION " -- " TVMJIT_COPYRIGHT ".\n", stdout);
 }
 
 static void print_jit_status(lua_State *L)
@@ -489,14 +492,14 @@ static int handle_luainit(lua_State *L)
 #if LJ_TARGET_CONSOLE
   const char *init = NULL;
 #else
-  const char *init = getenv(LUA_INIT);
+  const char *init = getenv(TVM_INIT);
 #endif
   if (init == NULL)
     return 0;  /* status OK */
   else if (init[0] == '@')
     return dofile(L, init+1);
   else
-    return dostring(L, init, "=" LUA_INIT);
+    return dostring(L, init, "=" TVM_INIT);
 }
 
 struct Smain {

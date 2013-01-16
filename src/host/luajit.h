@@ -28,8 +28,6 @@
 #ifndef _LUAJIT_H
 #define _LUAJIT_H
 
-#include "lua.h"
-
 #define LUAJIT_VERSION		"LuaJIT 2.0.0"
 #define LUAJIT_VERSION_NUM	20000  /* Version 2.0.0 = 02.00.00. */
 #define LUAJIT_VERSION_SYM	luaJIT_version_2_0_0

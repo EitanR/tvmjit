@@ -1,9 +1,11 @@
 /*
 ** Table handling.
-** Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2013 Francois Perrad.
 **
+** Major portions taken verbatim or adapted from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
 #define lj_tab_c
@@ -580,7 +582,7 @@ static MSize unbound_search(GCtab *t, MSize j)
 {
   cTValue *tv;
   MSize i = j;  /* i is zero or a present index */
-  j++;
+  j+=2;
   /* find `i' and `j' such that i is present and j is not */
   while ((tv = lj_tab_getint(t, (int32_t)j)) && !tvisnil(tv)) {
     i = j;
@@ -595,7 +597,7 @@ static MSize unbound_search(GCtab *t, MSize j)
   /* now do a binary search between them */
   while (j - i > 1) {
     MSize m = (i+j)/2;
-    cTValue *tvb = lj_tab_getint(t, (int32_t)m);
+    cTValue *tvb = lj_tab_getint(t, (int32_t)m-1);
     if (tvb && !tvisnil(tvb)) i = m; else j = m;
   }
   return i;
@@ -608,15 +610,14 @@ static MSize unbound_search(GCtab *t, MSize j)
 MSize LJ_FASTCALL lj_tab_len(GCtab *t)
 {
   MSize j = (MSize)t->asize;
-  if (j > 1 && tvisnil(arrayslot(t, j-1))) {
-    MSize i = 1;
+  if (j >= 1 && tvisnil(arrayslot(t, j-1))) {
+    MSize i = 0;
     while (j - i > 1) {
       MSize m = (i+j)/2;
       if (tvisnil(arrayslot(t, m-1))) j = m; else i = m;
     }
-    return i-1;
+    return i;
   }
-  if (j) j--;
   if (t->hmask <= 0)
     return j;
   return unbound_search(t, j);

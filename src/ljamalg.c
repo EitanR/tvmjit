@@ -45,8 +45,8 @@
 #include "lj_vmmath.c"
 #include "lj_strscan.c"
 #include "lj_api.c"
-#include "lj_lex.c"
-#include "lj_parse.c"
+#include "tj_lex.c"
+#include "tj_parse.c"
 #include "lj_bcread.c"
 #include "lj_bcwrite.c"
 #include "lj_load.c"
@@ -89,5 +89,6 @@
 #include "lib_bit.c"
 #include "lib_jit.c"
 #include "lib_ffi.c"
+#include "lib_peg.c"
 #include "lib_init.c"
 

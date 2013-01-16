@@ -1,12 +1,14 @@
 /*
 ** Lexical analyzer.
-** Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2013 Francois Perrad.
 **
+** Major portions taken verbatim or adapted from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
-#define lj_lex_c
+#define tj_lex_c
 #define LUA_CORE
 
 #include "lj_obj.h"
@@ -20,18 +22,16 @@
 #include "lualib.h"
 #endif
 #include "lj_state.h"
-#include "lj_lex.h"
-#include "lj_parse.h"
+#include "tj_lex.h"
+#include "tj_parse.h"
 #include "lj_char.h"
 #include "lj_strscan.h"
 
-/* Lua lexer token names. */
+/* tVM lexer token names. */
 static const char *const tokennames[] = {
-#define TKSTR1(name)		#name,
-#define TKSTR2(name, sym)	#sym,
-TKDEF(TKSTR1, TKSTR2)
-#undef TKSTR1
-#undef TKSTR2
+#define TKSTR(name, sym)	#sym,
+TKDEF(TKSTR)
+#undef TKSTR
   NULL
 };
 
@@ -86,11 +86,14 @@ static void inclinenumber(LexState *ls)
 /* -- Scanner for terminals ----------------------------------------------- */
 
 /* Parse a number literal. */
-static void lex_number(LexState *ls, TValue *tv)
+static void lex_number(LexState *ls)
 {
   StrScanFmt fmt;
+  TValue *tv = &ls->tokenval;
   int c, xp = 'e';
-  lua_assert(lj_char_isdigit(ls->current));
+  if (ls->current == '-' || ls->current == '+') {
+    save_and_next(ls);
+  }
   if ((c = ls->current) == '0') {
     save_and_next(ls);
     if ((ls->current | 0x20) == 'x') xp = 'p';
@@ -104,6 +107,7 @@ static void lex_number(LexState *ls, TValue *tv)
   fmt = lj_strscan_scan((const uint8_t *)ls->sb.buf, tv,
 	  (LJ_DUALNUM ? STRSCAN_OPT_TOINT : STRSCAN_OPT_TONUM) |
 	  (LJ_HASFFI ? (STRSCAN_OPT_LL|STRSCAN_OPT_IMAG) : 0));
+  ls->token = TK_number;
   if (LJ_DUALNUM && fmt == STRSCAN_INT) {
     setitype(tv, LJ_TISNUM);
   } else if (fmt == STRSCAN_NUM) {
@@ -134,58 +138,10 @@ static void lex_number(LexState *ls, TValue *tv)
   }
 }
 
-static int skip_sep(LexState *ls)
-{
-  int count = 0;
-  int s = ls->current;
-  lua_assert(s == '[' || s == ']');
-  save_and_next(ls);
-  while (ls->current == '=') {
-    save_and_next(ls);
-    count++;
-  }
-  return (ls->current == s) ? count : (-count) - 1;
-}
-
-static void read_long_string(LexState *ls, TValue *tv, int sep)
-{
-  save_and_next(ls);  /* skip 2nd `[' */
-  if (currIsNewline(ls))  /* string starts with a newline? */
-    inclinenumber(ls);  /* skip it */
-  for (;;) {
-    switch (ls->current) {
-    case END_OF_STREAM:
-      lj_lex_error(ls, TK_eof, tv ? LJ_ERR_XLSTR : LJ_ERR_XLCOM);
-      break;
-    case ']':
-      if (skip_sep(ls) == sep) {
-	save_and_next(ls);  /* skip 2nd `]' */
-	goto endloop;
-      }
-      break;
-    case '\n':
-    case '\r':
-      save(ls, '\n');
-      inclinenumber(ls);
-      if (!tv) lj_str_resetbuf(&ls->sb);  /* avoid wasting space */
-      break;
-    default:
-      if (tv) save_and_next(ls);
-      else next(ls);
-      break;
-    }
-  } endloop:
-  if (tv) {
-    GCstr *str = lj_parse_keepstr(ls, ls->sb.buf + (2 + (MSize)sep),
-				      ls->sb.n - 2*(2 + (MSize)sep));
-    setstrV(ls->L, tv, str);
-  }
-}
-
-static void read_string(LexState *ls, int delim, TValue *tv)
+static void read_string(LexState *ls)
 {
   save_and_next(ls);
-  while (ls->current != delim) {
+  while (ls->current != '"') {
     switch (ls->current) {
     case END_OF_STREAM:
       lj_lex_error(ls, TK_eof, LJ_ERR_XSTR);
@@ -216,6 +172,37 @@ static void read_string(LexState *ls, int delim, TValue *tv)
 	  c += 9;
 	}
 	break;
+      case 'u':  /* Unicode escape '\uXXXX'. */
+	c = (next(ls) & 15u) << 12;
+	if (!lj_char_isdigit(ls->current)) {
+	  if (!lj_char_isxdigit(ls->current)) goto err_xesc;
+	  c += 9 << 12;
+	}
+	c += (next(ls) & 15u) << 8;
+	if (!lj_char_isdigit(ls->current)) {
+	  if (!lj_char_isxdigit(ls->current)) goto err_xesc;
+	  c += 9 << 8;
+	}
+	c += (next(ls) & 15u) << 4;
+	if (!lj_char_isdigit(ls->current)) {
+	  if (!lj_char_isxdigit(ls->current)) goto err_xesc;
+	  c += 9 << 4;
+	}
+	c += (next(ls) & 15u);
+	if (!lj_char_isdigit(ls->current)) {
+	  if (!lj_char_isxdigit(ls->current)) goto err_xesc;
+	  c += 9;
+	}
+	if (c >= 0x0800) {
+	  save(ls, 0xE0 | (c >> 12));
+	  save(ls, 0x80 | ((c >> 6) & 0x3f));
+	  c = 0x80 | (c & 0x3f);
+	}
+	else if (c >= 0x0080) {
+	  save(ls, 0xC0 | (c >> 6));
+	  c = 0x80 | (c & 0x3f);
+	}
+	break;
       case 'z':  /* Skip whitespace. */
 	next(ls);
 	while (lj_char_isspace(ls->current))
@@ -225,22 +212,8 @@ static void read_string(LexState *ls, int delim, TValue *tv)
       case '\\': case '\"': case '\'': break;
       case END_OF_STREAM: continue;
       default:
-	if (!lj_char_isdigit(c))
-	  goto err_xesc;
-	c -= '0';  /* Decimal escape '\ddd'. */
-	if (lj_char_isdigit(next(ls))) {
-	  c = c*10 + (ls->current - '0');
-	  if (lj_char_isdigit(next(ls))) {
-	    c = c*10 + (ls->current - '0');
-	    if (c > 255) {
-	    err_xesc:
-	      lj_lex_error(ls, TK_string, LJ_ERR_XESC);
-	    }
-	    next(ls);
-	  }
-	}
-	save(ls, c);
-	continue;
+      err_xesc:
+	lj_lex_error(ls, TK_string, LJ_ERR_XESC);
       }
       save(ls, c);
       next(ls);
@@ -252,31 +225,44 @@ static void read_string(LexState *ls, int delim, TValue *tv)
     }
   }
   save_and_next(ls);  /* skip delimiter */
-  setstrV(ls->L, tv, lj_parse_keepstr(ls, ls->sb.buf + 1, ls->sb.n - 2));
+  setstrV(ls->L, &ls->tokenval, lj_parse_keepstr(ls, ls->sb.buf + 1, ls->sb.n - 2));
+  ls->token = TK_string;
+}
+
+static void lex_name(LexState *ls)
+{
+  GCstr *s;
+  for (;;) {
+    switch (ls->current) {
+      case '\n':
+      case '\r':  /* line breaks */
+      case ' ':
+      case '\f':
+      case '\t':
+      case '\v':  /* spaces */
+      case '(':
+      case ')':
+      case ':':
+        goto end;
+      case '\\':
+        next(ls);
+      default:
+        save_and_next(ls);
+    }
+  }
+end:
+  s = lj_parse_keepstr(ls, ls->sb.buf, ls->sb.n);
+  setstrV(ls->L, &ls->tokenval, s);
+  ls->token = TK_name;
 }
 
 /* -- Main lexical scanner ------------------------------------------------ */
 
-static int llex(LexState *ls, TValue *tv)
+void lj_lex_next(LexState *ls)
 {
+  ls->lastline = ls->linenumber;
   lj_str_resetbuf(&ls->sb);
   for (;;) {
-    if (lj_char_isident(ls->current)) {
-      GCstr *s;
-      if (lj_char_isdigit(ls->current)) {  /* Numeric literal. */
-	lex_number(ls, tv);
-	return TK_number;
-      }
-      /* Identifier or reserved word. */
-      do {
-	save_and_next(ls);
-      } while (lj_char_isident(ls->current));
-      s = lj_parse_keepstr(ls, ls->sb.buf, ls->sb.n);
-      setstrV(ls->L, tv, s);
-      if (s->reserved > 0)  /* Reserved word? */
-	return TK_OFS + s->reserved;
-      return TK_name;
-    }
     switch (ls->current) {
     case '\n':
     case '\r':
@@ -288,76 +274,41 @@ static int llex(LexState *ls, TValue *tv)
     case '\f':
       next(ls);
       continue;
-    case '-':
+    case ';':
       next(ls);
-      if (ls->current != '-') return '-';
-      /* else is a comment */
-      next(ls);
-      if (ls->current == '[') {
-	int sep = skip_sep(ls);
-	lj_str_resetbuf(&ls->sb);  /* `skip_sep' may dirty the buffer */
-	if (sep >= 0) {
-	  read_long_string(ls, NULL, sep);  /* long comment */
-	  lj_str_resetbuf(&ls->sb);
-	  continue;
-	}
-      }
-      /* else short comment */
       while (!currIsNewline(ls) && ls->current != END_OF_STREAM)
 	next(ls);
       continue;
-    case '[': {
-      int sep = skip_sep(ls);
-      if (sep >= 0) {
-	read_long_string(ls, tv, sep);
-	return TK_string;
-      } else if (sep == -1) {
-	return '[';
-      } else {
-	lj_lex_error(ls, TK_string, LJ_ERR_XLDELIM);
-	continue;
-      }
-      }
-    case '=':
+    case '(':
+    case ')':
+    case ':': {
+      ls->token = ls->current;
       next(ls);
-      if (ls->current != '=') return '='; else { next(ls); return TK_eq; }
-    case '<':
-      next(ls);
-      if (ls->current != '=') return '<'; else { next(ls); return TK_le; }
-    case '>':
-      next(ls);
-      if (ls->current != '=') return '>'; else { next(ls); return TK_ge; }
-    case '~':
-      next(ls);
-      if (ls->current != '=') return '~'; else { next(ls); return TK_ne; }
-    case ':':
-      next(ls);
-      if (ls->current != ':') return ':'; else { next(ls); return TK_label; }
+      return;
+    }
     case '"':
-    case '\'':
-      read_string(ls, ls->current, tv);
-      return TK_string;
-    case '.':
-      save_and_next(ls);
-      if (ls->current == '.') {
-	next(ls);
-	if (ls->current == '.') {
-	  next(ls);
-	  return TK_dots;   /* ... */
-	}
-	return TK_concat;   /* .. */
-      } else if (!lj_char_isdigit(ls->current)) {
-	return '.';
-      } else {
-	lex_number(ls, tv);
-	return TK_number;
-      }
+      read_string(ls);
+      return;
+    case '-':
+    case '+':
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      lex_number(ls);
+      return;
     case END_OF_STREAM:
-      return TK_eof;
+      ls->token = TK_eof;
+      return;
     default: {
-      int c = ls->current;
-      next(ls);
-      return c;  /* Single-char tokens (+ - / ...). */
+      lex_name(ls);
+      return;
     }
     }
   }
@@ -378,7 +329,6 @@ int lj_lex_setup(lua_State *L, LexState *ls)
   ls->vtop = 0;
   ls->bcstack = NULL;
   ls->sizebcstack = 0;
-  ls->lookahead = TK_eof;  /* No look-ahead token. */
   ls->linenumber = 1;
   ls->lastline = 1;
   lj_str_resizebuf(ls->L, &ls->sb, LJ_MIN_SBUF);
@@ -423,25 +373,6 @@ void lj_lex_cleanup(lua_State *L, LexState *ls)
   lj_str_freebuf(g, &ls->sb);
 }
 
-void lj_lex_next(LexState *ls)
-{
-  ls->lastline = ls->linenumber;
-  if (LJ_LIKELY(ls->lookahead == TK_eof)) {  /* No lookahead token? */
-    ls->token = llex(ls, &ls->tokenval);  /* Get next token. */
-  } else {  /* Otherwise return lookahead token. */
-    ls->token = ls->lookahead;
-    ls->lookahead = TK_eof;
-    ls->tokenval = ls->lookaheadval;
-  }
-}
-
-LexToken lj_lex_lookahead(LexState *ls)
-{
-  lua_assert(ls->lookahead == TK_eof);
-  ls->lookahead = llex(ls, &ls->lookaheadval);
-  return ls->lookahead;
-}
-
 const char *lj_lex_token2str(LexState *ls, LexToken token)
 {
   if (token > TK_OFS)
@@ -467,15 +398,5 @@ void lj_lex_error(LexState *ls, LexToken token, ErrMsg em, ...)
   va_start(argp, em);
   lj_err_lex(ls->L, ls->chunkname, tok, ls->linenumber, em, argp);
   va_end(argp);
-}
-
-void lj_lex_init(lua_State *L)
-{
-  uint32_t i;
-  for (i = 0; i < TK_RESERVED; i++) {
-    GCstr *s = lj_str_newz(L, tokennames[i]);
-    fixstring(s);  /* Reserved words are never collected. */
-    s->reserved = (uint8_t)(i+1);
-  }
 }
 

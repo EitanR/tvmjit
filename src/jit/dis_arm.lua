@@ -1,8 +1,11 @@
 ----------------------------------------------------------------------------
 -- LuaJIT ARM disassembler module.
 --
--- Copyright (C) 2005-2012 Mike Pall. All rights reserved.
--- Released under the MIT license. See Copyright Notice in luajit.h
+-- Copyright (C) 2013 Francois Perrad.
+--
+-- Major portions taken verbatim or adapted from the LuaJIT.
+-- Copyright (C) 2005-2012 Mike Pall.
+-- Released under the MIT license.
 ----------------------------------------------------------------------------
 -- This is a helper module used by the LuaJIT machine code dumper module.
 --
@@ -530,7 +533,7 @@ local function disass_ins(ctx)
     opat = opat[band(rshift(op, opat.shift), opat.mask)] or opat._
   end
   name, pat = match(opat, "^([a-z0-9]*)(.*)")
-  if sub(pat, 1, 1) == "." then
+  if sub(pat, 0, 0) == "." then
     local s2, p2 = match(pat, "^([a-z0-9.]*)(.*)")
     suffix = suffix..s2
     pat = p2
@@ -601,7 +604,7 @@ local function disass_ins(ctx)
       if band(op, 0x00200000) ~= 0 and #operands == 2 then
 	operands[1] = operands[1].."!"
       end
-      local s = tonumber(sub(last, 2))
+      local s = tonumber(sub(last, 1))
       local n = band(op, 255)
       if vr == "d" then n = rshift(n, 1) end
       operands[#operands] = format("{%s-%s%d}", last, vr, s+n-1)
@@ -681,9 +684,8 @@ local function regname_(r)
 end
 
 -- Public module functions.
-module(...)
-
-create = create_
-disass = disass_
-regname = regname_
-
+return {
+    create =    create_,
+    disass =    disass_,
+    regname =   regname_,
+}

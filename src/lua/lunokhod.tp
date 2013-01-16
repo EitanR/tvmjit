@@ -1,0 +1,1013 @@
+; bootstrap
+(!line "lua/lunokhod.lua" 1)
+(!line 7)(!define _G _G)
+(!line 8)(!define arg arg)
+(!line 9)(!define assert assert)
+(!line 10)(!define error error)
+(!line 11)(!define tonumber tonumber)
+(!line 12)(!define print print)
+(!line 13)(!define char (!index string "char"))
+(!line 14)(!define quote (!index string "quote"))
+(!line 15)(!define tconcat (!index table "concat"))
+(!line 16)(!define any (!index peg "any"))
+(!line 17)(!define backref (!index peg "backref"))
+(!line 18)(!define capture (!index peg "capture"))
+(!line 19)(!define choice (!index peg "choice"))
+(!line 20)(!define not_followed_by (!index peg "not_followed_by"))
+(!line 21)(!define eos (!call (!index peg "eos") ))
+(!line 22)(!define except (!index peg "except"))
+(!line 23)(!define group (!index peg "group"))
+(!line 24)(!define literal (!index peg "literal"))
+(!line 25)(!define many (!index peg "many"))
+(!line 26)(!define matchtime (!index peg "matchtime"))
+(!line 27)(!define optional (!index peg "optional"))
+(!line 28)(!define position (!call (!index peg "position") ))
+(!line 29)(!define range (!index peg "range"))
+(!line 30)(!define replace (!index peg "replace"))
+(!line 31)(!define sequence (!index peg "sequence"))
+(!line 32)(!define set (!index peg "set"))
+(!line 33)(!define some (!index peg "some"))
+(!line 34)(!define subst (!index peg "subst"))
+(!line 37)(!define lineno)
+(!line 38)(!define inc_lineno)(!assign inc_lineno (!lambda ()
+(!line 39)(!assign lineno (!add lineno 1))))
+
+(!line 41)(!define inc_lineno2)(!assign inc_lineno2 (!lambda ()
+(!line 42)(!assign lineno (!add lineno 0.5))))
+
+(!line 44)(!define syntaxerror)(!assign syntaxerror (!lambda (err)
+(!line 45)(!call error (!concat err (!concat " at " lineno)))))
+
+(!line 48)(!define bytecode (!call literal "\x1B"))
+(!line 49)(!define bom (!call literal "﻿"))
+(!line 50)(!define shebang (!call sequence (!call literal "#!") (!call many (!call except (!call any ) (!call set "\x0C\x0A\x0D")))))
+(!line 51)(!define equals (!call many (!call literal "=")))
+(!line 52)(!define open (!call sequence (!call literal "[") (!call group equals "init") (!call literal "[") (!call optional (!call replace (!call literal "\x0A") inc_lineno2))))
+(!line 53)(!define close (!call sequence (!call literal "]") (!call capture equals) (!call literal "]")))
+(!line 54)(!define closeeq (!call matchtime (!call sequence close (!call backref "init")) (!lambda (s i a b)
+(!line 54)(!return (!eq a b)))))
+(!line 55)(!define long_string (!call replace (!call sequence open (!call capture (!call many (!call choice (!call replace (!call literal "\x0A") inc_lineno2) (!call except (!call any ) closeeq)))) close) quote))
+(!line 56)(!define comment (!call sequence (!call literal "--") (!call choice (!call replace long_string (!lambda ()
+(!line 56)(!return ))) (!call many (!call except (!call any ) (!call set "\x0C\x0A\x0D"))))))
+(!line 57)(!define ws (!call many (!call choice (!call set " \x0C\x09\x0D\x0B") (!call replace (!call literal "\x0A") inc_lineno) comment)))
+(!line 58)(!define capt_ws (!call sequence (!call capture ws) position))
+(!line 60)(!define reserved ("and": !true "break": !true "do": !true "else": !true "elseif": !true "end": !true "false": !true "for": !true "function": !true "goto": !true "if": !true "in": !true "local": !true "nil": !true "not": !true "or": !true "repeat": !true "return": !true "then": !true "true": !true "until": !true "while": !true ))
+(!line 84)(!define check_reserved (!lambda (tok)
+(!line 85)(!if (!not (!index reserved tok))
+(!do
+(!line 86)(!return tok)))))
+(!line 89)(!define ch_ident (!call range "09" "AZ" "az" "__"))
+(!line 90)(!define identifier (!call sequence (!call range "AZ" "az" "__") (!call many ch_ident)))
+(!line 91)(!define capt_identifier (!call sequence (!call replace identifier check_reserved) position))
+(!line 93)(!define digit (!call range "09"))
+(!line 94)(!define int (!call some digit))
+(!line 95)(!define frac (!call sequence (!call literal ".") (!call many digit)))
+(!line 96)(!define sign (!call set "-+"))
+(!line 97)(!define exp (!call sequence (!call set "Ee") (!call optional sign) (!call some digit)))
+(!line 98)(!define xdigit (!call range "09" "AF" "af"))
+(!line 99)(!define xint (!call sequence (!call literal "0") (!call set "xX") (!call some xdigit)))
+(!line 100)(!define xfrac (!call sequence (!call literal ".") (!call many xdigit)))
+(!line 101)(!define xexp (!call sequence (!call set "Pp") (!call optional sign) (!call some digit)))
+(!line 102)(!define number (!call choice (!call sequence xint (!call optional xfrac) (!call optional xexp)) (!call sequence (!call optional (!call literal "-")) int (!call optional frac) (!call optional exp))))
+(!line 104)(!define capt_number (!call sequence (!call capture number) position))
+(!line 107)(!define gsub)(!assign gsub (!lambda (patt repl)
+(!line 108)(!return (!call subst (!call many (!call choice (!call replace patt repl) (!call any )))))))
+
+(!line 111)(!define special ("'": "'" "\"": "\"" "\\": "\\" "/": "/" "a": "\x07" "b": "\x08" "f": "\x0C" "n": "\x0A" "r": "\x0D" "t": "\x09" "v": "\x0B" ))
+(!line 125)(!define escape_special (!call sequence (!call literal "\\") (!call capture (!call set "'\"\\/abfnrtv"))))
+(!line 126)(!define gsub_escape_special (!call gsub escape_special special))
+(!line 127)(!define escape_xdigit (!call sequence (!call literal "\\x") (!call capture (!call sequence xdigit xdigit))))
+(!line 128)(!define gsub_escape_xdigit (!call gsub escape_xdigit (!lambda (s)
+(!line 129)(!return (!call char (!call tonumber s 16))))))
+(!line 131)(!define escape_decimal (!call sequence (!call literal "\\") (!call capture (!call sequence digit (!call optional digit) (!call optional digit)))))
+(!line 132)(!define gsub_escape_decimal (!call gsub escape_decimal (!lambda (s)
+(!line 133)(!define n (!call tonumber s))
+(!line 134)(!if (!ge n 256)
+(!do
+(!line 135)(!call syntaxerror (!concat "decimal escape too large near " s))))
+(!line 137)(!return (!call char n)))))
+(!line 140)(!define unescape (!lambda (str)
+(!line 141)(!return (!callmeth gsub_escape_special match (!callmeth gsub_escape_xdigit match (!callmeth gsub_escape_decimal match str))))))
+(!line 144)(!define zap (!call replace (!call sequence (!call literal "\\z") (!call some (!call set "\x0A\x0D"))) ""))
+(!line 145)(!define ch_sq (!call choice zap (!call literal "\\\\") (!call literal "\\'") (!call except (!call any ) (!call literal "'") (!call range "\x00\x1F"))))
+(!line 146)(!define ch_dq (!call choice zap (!call literal "\\\\") (!call literal "\\\"") (!call except (!call any ) (!call literal "\"") (!call range "\x00\x1F"))))
+(!line 147)(!define simple_quote_string (!call replace (!call replace (!call sequence (!call literal "'") (!call subst (!call many ch_sq)) (!call literal "'")) unescape) quote))
+(!line 148)(!define double_quote_string (!call replace (!call replace (!call sequence (!call literal "\"") (!call subst (!call many ch_dq)) (!call literal "\"")) unescape) quote))
+(!line 149)(!define tok_string (!call choice simple_quote_string double_quote_string long_string))
+(!line 150)(!define capt_string (!call sequence tok_string position))
+(!line 153)(!define not_ch_ident (!call not_followed_by ch_ident))
+(!line 154)(!define tok_and (!call sequence (!call literal "and") not_ch_ident))
+(!line 155)(!define capt_and (!call sequence (!call capture tok_and) position))
+(!line 156)(!define tok_break (!call sequence (!call literal "break") not_ch_ident))
+(!line 157)(!define capt_break (!call sequence (!call capture tok_break) position))
+(!line 158)(!define tok_do (!call sequence (!call literal "do") not_ch_ident))
+(!line 159)(!define capt_do (!call sequence (!call capture tok_do) position))
+(!line 160)(!define tok_else (!call sequence (!call literal "else") not_ch_ident))
+(!line 161)(!define capt_else (!call sequence (!call capture tok_else) position))
+(!line 162)(!define tok_elseif (!call sequence (!call literal "elseif") not_ch_ident))
+(!line 163)(!define capt_elseif (!call sequence (!call capture tok_elseif) position))
+(!line 164)(!define tok_end (!call sequence (!call literal "end") not_ch_ident))
+(!line 165)(!define capt_end (!call sequence (!call capture tok_end) position))
+(!line 166)(!define tok_false (!call sequence (!call literal "false") not_ch_ident))
+(!line 167)(!define capt_false (!call sequence (!call capture tok_false) position))
+(!line 168)(!define tok_for (!call sequence (!call literal "for") not_ch_ident))
+(!line 169)(!define capt_for (!call sequence (!call capture tok_for) position))
+(!line 170)(!define tok_function (!call sequence (!call literal "function") not_ch_ident))
+(!line 171)(!define capt_function (!call sequence (!call capture tok_function) position))
+(!line 172)(!define tok_goto (!call sequence (!call literal "goto") not_ch_ident))
+(!line 173)(!define capt_goto (!call sequence (!call capture tok_goto) position))
+(!line 174)(!define tok_if (!call sequence (!call literal "if") not_ch_ident))
+(!line 175)(!define capt_if (!call sequence (!call capture tok_if) position))
+(!line 176)(!define tok_in (!call sequence (!call literal "in") not_ch_ident))
+(!line 177)(!define capt_in (!call sequence (!call capture tok_in) position))
+(!line 178)(!define tok_local (!call sequence (!call literal "local") not_ch_ident))
+(!line 179)(!define capt_local (!call sequence (!call capture tok_local) position))
+(!line 180)(!define tok_nil (!call sequence (!call literal "nil") not_ch_ident))
+(!line 181)(!define capt_nil (!call sequence (!call capture tok_nil) position))
+(!line 182)(!define tok_not (!call sequence (!call literal "not") not_ch_ident))
+(!line 183)(!define capt_not (!call sequence (!call capture tok_not) position))
+(!line 184)(!define tok_or (!call sequence (!call literal "or") not_ch_ident))
+(!line 185)(!define capt_or (!call sequence (!call capture tok_or) position))
+(!line 186)(!define tok_repeat (!call sequence (!call literal "repeat") not_ch_ident))
+(!line 187)(!define capt_repeat (!call sequence (!call capture tok_repeat) position))
+(!line 188)(!define tok_return (!call sequence (!call literal "return") not_ch_ident))
+(!line 189)(!define capt_return (!call sequence (!call capture tok_return) position))
+(!line 190)(!define tok_then (!call sequence (!call literal "then") not_ch_ident))
+(!line 191)(!define capt_then (!call sequence (!call capture tok_then) position))
+(!line 192)(!define tok_true (!call sequence (!call literal "true") not_ch_ident))
+(!line 193)(!define capt_true (!call sequence (!call capture tok_true) position))
+(!line 194)(!define tok_until (!call sequence (!call literal "until") not_ch_ident))
+(!line 195)(!define capt_until (!call sequence (!call capture tok_until) position))
+(!line 196)(!define tok_while (!call sequence (!call literal "while") not_ch_ident))
+(!line 197)(!define capt_while (!call sequence (!call capture tok_while) position))
+(!line 200)(!define tok_colon (!call literal ":"))
+(!line 201)(!define capt_colon (!call sequence (!call capture tok_colon) position))
+(!line 202)(!define tok_comma (!call literal ","))
+(!line 203)(!define capt_comma (!call sequence (!call capture tok_comma) position))
+(!line 204)(!define tok_dbcolon (!call literal "::"))
+(!line 205)(!define capt_dbcolon (!call sequence (!call capture tok_dbcolon) position))
+(!line 206)(!define tok_dot (!call sequence (!call literal ".") (!call not_followed_by (!call literal "."))))
+(!line 207)(!define capt_dot (!call sequence (!call capture tok_dot) position))
+(!line 208)(!define tok_equal (!call literal "="))
+(!line 209)(!define capt_equal (!call sequence (!call capture tok_equal) position))
+(!line 210)(!define tok_left_brace (!call literal "{"))
+(!line 211)(!define capt_left_brace (!call sequence (!call capture tok_left_brace) position))
+(!line 212)(!define tok_left_bracket (!call sequence (!call literal "[") (!call not_followed_by (!call literal "[")) (!call not_followed_by (!call literal "="))))
+(!line 213)(!define capt_left_bracket (!call sequence (!call capture tok_left_bracket) position))
+(!line 214)(!define tok_left_paren (!call literal "("))
+(!line 215)(!define capt_left_paren (!call sequence (!call capture tok_left_paren) position))
+(!line 216)(!define tok_right_brace (!call literal "}"))
+(!line 217)(!define capt_right_brace (!call sequence (!call capture tok_right_brace) position))
+(!line 218)(!define tok_right_bracket (!call literal "]"))
+(!line 219)(!define capt_right_bracket (!call sequence (!call capture tok_right_bracket) position))
+(!line 220)(!define tok_right_paren (!call literal ")"))
+(!line 221)(!define capt_right_paren (!call sequence (!call capture tok_right_paren) position))
+(!line 222)(!define tok_semicolon (!call literal ";"))
+(!line 223)(!define capt_semicolon (!call sequence (!call capture tok_semicolon) position))
+(!line 224)(!define tok_sel (!call set ".:"))
+(!line 225)(!define capt_sel (!call sequence (!call capture tok_sel) position))
+(!line 226)(!define tok_sep (!call set ",;"))
+(!line 227)(!define capt_sep (!call sequence (!call capture tok_sep) position))
+(!line 228)(!define tok_vararg (!call literal "..."))
+(!line 229)(!define capt_vararg (!call sequence (!call capture tok_vararg) position))
+(!line 231)(!define unopr (!call choice tok_not (!call literal "-") (!call literal "#")))
+(!line 232)(!define capt_unopr (!call sequence (!call capture unopr) position))
+(!line 233)(!define binopr (!call choice (!call literal "+") (!call literal "-") (!call literal "*") (!call literal "/") (!call literal "%") (!call literal "^") (!call literal "..") (!call literal "~=") (!call literal "==") (!call literal "<=") (!call literal "<") (!call literal ">=") (!call literal ">") tok_and tok_or))
+(!line 235)(!define capt_binopr (!call sequence (!call capture binopr) position))
+(!line 238)(!define statement)
+
+(!line 239)(!define expr)
+
+(!line 242)(!define block_follow)(!assign block_follow (!lambda (s pos withuntil)
+(!line 243)(!if (!callmeth1 (!call1 literal "else") match s pos)
+(!do
+(!line 244)(!return !true)))
+(!line 246)(!if (!callmeth1 (!call1 literal "elseif") match s pos)
+(!do
+(!line 247)(!return !true)))
+(!line 249)(!if (!callmeth1 (!call1 literal "end") match s pos)
+(!do
+(!line 250)(!return !true)))
+(!line 252)(!if (!callmeth1 eos match s pos)
+(!do
+(!line 253)(!return !true)))
+(!line 255)(!if (!callmeth1 (!call1 literal "until") match s pos)
+(!do
+(!line 256)(!return withuntil)))
+(!line 258)(!return !false)))
+
+(!line 262)(!define skip_ws)(!assign skip_ws (!lambda (s pos)
+(!line 263)(!define (capt posn) ((!callmeth capt_ws match s pos)))
+(!line 264)(!return posn)))
+
+(!line 268)(!define statlist)(!assign statlist (!lambda (s pos buffer)
+(!line 270)(!assign pos (!call skip_ws s pos))
+(!line 271)(!while (!not (!call block_follow s pos !true))
+
+(!line 272)(!assign (!index buffer (!len buffer)) "\x0A")
+(!line 273)(!if (!callmeth1 tok_return match s pos)
+(!do
+(!line 274)(!return (!call statement s pos buffer))))
+(!line 276)(!assign pos (!call statement s pos buffer))
+(!line 277)(!assign pos (!call skip_ws s pos)))
+(!line 279)(!return pos)))
+
+(!line 283)(!define fieldsel)(!assign fieldsel (!lambda (s pos buffer)
+(!line 285)(!define (capt posn) ((!callmeth capt_sel match s pos)))
+(!line 286)(!call assert posn)
+(!line 287)(!assign pos (!call skip_ws s posn))
+(!line 288)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 289)(!if (!not posn)
+(!do
+(!line 290)(!call syntaxerror "<name> expected")))
+(!line 292)(!assign (!index buffer (!len buffer)) (!call quote capt))
+(!line 293)(!return posn)))
+
+(!line 297)(!define yindex)(!assign yindex (!lambda (s pos buffer)
+(!line 299)(!define (capt posn) ((!callmeth capt_left_bracket match s pos)))
+(!line 300)(!call assert posn)
+(!line 301)(!assign pos (!call skip_ws s posn))
+(!line 302)(!assign pos (!call expr s pos buffer !true))
+(!line 303)(!massign (capt posn) ((!callmeth capt_right_bracket match s pos)))
+(!line 304)(!if (!not posn)
+(!do
+(!line 305)(!call syntaxerror "] expected")))
+(!line 307)(!return posn)))
+
+(!line 311)(!define recfield)(!assign recfield (!lambda (s pos buffer)
+(!line 313)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 314)(!if posn
+(!do
+(!line 315)(!assign (!index buffer (!len buffer)) "\"")
+(!line 316)(!assign (!index buffer (!len buffer)) capt)
+(!line 317)(!assign (!index buffer (!len buffer)) "\"")
+(!line 318)(!assign pos posn))(!do
+(!line 320)(!assign pos (!call yindex s pos buffer))))
+(!line 322)(!assign pos (!call skip_ws s pos))
+(!line 323)(!massign (capt posn) ((!callmeth capt_equal match s pos)))
+(!line 324)(!if (!not posn)
+(!do
+(!line 325)(!call syntaxerror "= expected")))
+(!line 327)(!assign (!index buffer (!len buffer)) ": ")
+(!line 328)(!assign pos (!call skip_ws s posn))
+(!line 329)(!return (!call expr s pos buffer !true))))
+
+(!line 333)(!define listfield)(!assign listfield (!lambda (s pos buffer)
+(!line 335)(!return (!call expr s pos buffer))))
+
+(!line 339)(!define field)(!assign field (!lambda (s pos buffer)
+(!line 341)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 342)(!if posn
+(!do
+(!line 343)(!if (!callmeth1 (!call1 sequence ws tok_equal) match s posn)
+(!do
+(!line 344)(!return (!call recfield s pos buffer)))(!do
+(!line 346)(!return (!call listfield s pos buffer))))))
+(!line 349)(!if (!callmeth1 tok_left_bracket match s pos)
+(!do
+(!line 350)(!return (!call recfield s pos buffer))))
+(!line 352)(!return (!call listfield s pos buffer))))
+
+(!line 356)(!define constructor)(!assign constructor (!lambda (s pos buffer)
+(!line 358)(!define (capt posn) ((!callmeth capt_left_brace match s pos)))
+(!line 359)(!if (!not posn)
+(!do
+(!line 360)(!call syntaxerror "{ expected")))
+(!line 362)(!assign (!index buffer (!len buffer)) "(")
+(!line 363)(!assign pos (!call skip_ws s posn))
+(!line 364)(!repeat
+(!line 365)(!if (!callmeth1 tok_right_brace match s pos)
+(!do
+(!line 366)(!break)))
+(!line 368)(!assign pos (!call field s pos buffer))
+(!line 369)(!assign pos (!call skip_ws s pos))
+(!line 370)(!massign (capt posn) ((!callmeth capt_sep match s pos)))
+(!line 371)(!if posn
+(!do
+(!line 372)(!assign (!index buffer (!len buffer)) " ")
+(!line 373)(!assign pos (!call skip_ws s posn))))
+(!not posn))
+(!line 376)(!massign (capt posn) ((!callmeth capt_right_brace match s pos)))
+(!line 377)(!if (!not posn)
+(!do
+(!line 378)(!call syntaxerror "} expected")))
+(!line 380)(!assign (!index buffer (!len buffer)) ")")
+(!line 381)(!return posn)))
+
+(!line 385)(!define parlist)(!assign parlist (!lambda (s pos buffer ismethod)
+(!line 388)(!if ismethod
+(!do
+(!line 389)(!assign (!index buffer (!len buffer)) "self")))
+(!line 391)(!if (!not (!callmeth tok_right_paren match s pos))
+(!do
+(!line 392)(!if ismethod
+(!do
+(!line 393)(!assign (!index buffer (!len buffer)) " ")))
+(!line 395)(!repeat
+(!line 396)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 397)(!if posn
+(!do
+(!line 398)(!assign (!index buffer (!len buffer)) capt)
+(!line 399)(!assign pos posn))(!do
+(!line 401)(!massign (capt posn) ((!callmeth capt_vararg match s pos)))
+(!line 402)(!if posn
+(!do
+(!line 403)(!assign (!index buffer (!len buffer)) "!vararg")
+(!line 404)(!return posn))(!do
+(!line 406)(!call syntaxerror "<name> or '...' expected")))))
+(!line 409)(!assign pos (!call skip_ws s pos))
+(!line 410)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 411)(!if posn
+(!do
+(!line 412)(!assign (!index buffer (!len buffer)) " ")
+(!line 413)(!assign pos (!call skip_ws s posn))))
+(!not posn))))
+(!line 417)(!return pos)))
+
+(!line 421)(!define body)(!assign body (!lambda (s pos buffer ismethod)
+(!line 423)(!define (capt posn) ((!callmeth capt_left_paren match s pos)))
+(!line 424)(!if (!not posn)
+(!do
+(!line 425)(!call syntaxerror "( expected")))
+(!line 427)(!assign (!index buffer (!len buffer)) "(")
+(!line 428)(!assign pos (!call skip_ws s posn))
+(!line 429)(!assign pos (!call parlist s pos buffer ismethod))
+(!line 430)(!assign pos (!call skip_ws s pos))
+(!line 431)(!massign (capt posn) ((!callmeth capt_right_paren match s pos)))
+(!line 432)(!if (!not posn)
+(!do
+(!line 433)(!call syntaxerror ") expected")))
+(!line 435)(!assign (!index buffer (!len buffer)) ")")
+(!line 436)(!assign pos (!call statlist s posn buffer))
+(!line 437)(!assign pos (!call skip_ws s pos))
+(!line 438)(!massign (capt posn) ((!callmeth capt_end match s pos)))
+(!line 439)(!if (!not posn)
+(!do
+(!line 440)(!call syntaxerror "'end' expected")))
+(!line 442)(!assign (!index buffer (!len buffer)) ")")
+(!line 443)(!return posn)))
+
+(!line 447)(!define explist)(!assign explist (!lambda (s pos buffer)
+(!line 449)(!assign pos (!call expr s pos buffer))
+(!line 450)(!assign pos (!call skip_ws s pos))
+(!line 451)(!define (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 452)(!while posn
+
+(!line 453)(!assign (!index buffer (!len buffer)) " ")
+(!line 454)(!assign pos (!call skip_ws s posn))
+(!line 455)(!assign pos (!call expr s pos buffer))
+(!line 456)(!assign pos (!call skip_ws s pos))
+(!line 457)(!massign (capt posn) ((!callmeth capt_comma match s pos))))
+(!line 459)(!return pos)))
+
+(!line 463)(!define funcargs)(!assign funcargs (!lambda (s pos buffer)
+(!line 465)(!define (capt posn) ((!callmeth capt_left_paren match s pos)))
+(!line 466)(!if posn
+(!do
+(!line 467)(!assign pos (!call skip_ws s posn))
+(!line 468)(!massign (capt posn) ((!callmeth capt_right_paren match s pos)))
+(!line 469)(!if posn
+(!do
+(!line 470)(!return posn)))
+(!line 472)(!assign pos (!call explist s pos buffer))
+(!line 473)(!massign (capt posn) ((!callmeth capt_right_paren match s pos)))
+(!line 474)(!if posn
+(!do
+(!line 475)(!return posn))(!do
+(!line 477)(!call syntaxerror ") expected")))))
+(!line 481)(!if (!callmeth1 tok_left_brace match s pos)
+(!do
+(!line 482)(!return (!call constructor s pos buffer))))
+(!line 485)(!massign (capt posn) ((!callmeth capt_string match s pos)))
+(!line 486)(!if posn
+(!do
+(!line 487)(!assign (!index buffer (!len buffer)) capt)
+(!line 488)(!return posn)))
+(!line 490)(!call syntaxerror "function arguments expected")))
+
+(!line 494)(!define primaryexpr)(!assign primaryexpr (!lambda (s pos buffer)
+(!line 496)(!assign pos (!call skip_ws s pos))
+(!line 497)(!define (capt posn) ((!callmeth capt_left_paren match s pos)))
+(!line 498)(!if posn
+(!do
+(!line 499)(!assign pos (!call expr s posn buffer !true))
+(!line 500)(!assign pos (!call skip_ws s pos))
+(!line 501)(!massign (capt posn) ((!callmeth capt_right_paren match s pos)))
+(!line 502)(!if posn
+(!do
+(!line 503)(!return posn))(!do
+(!line 505)(!call syntaxerror ") expected")))))
+(!line 508)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 509)(!if posn
+(!do
+(!line 510)(!assign (!index buffer (!len buffer)) capt)
+(!line 511)(!return posn)))
+(!line 513)(!call syntaxerror "unexpected symbol")))
+
+(!line 517)(!define suffixedexpr)(!assign suffixedexpr (!lambda (s pos buffer one)
+(!line 520)(!define buf ())
+(!line 521)(!assign pos (!call primaryexpr s pos buf))
+(!line 522)(!define exp (!call tconcat buf))
+(!line 523)(!while !true
+
+(!line 524)(!assign buf ())
+(!line 525)(!assign pos (!call skip_ws s pos))
+(!line 526)(!if (!callmeth1 tok_dot match s pos)
+(!do
+(!line 527)(!assign (!index buf (!len buf)) "(!index ")
+(!line 528)(!assign (!index buf (!len buf)) exp)
+(!line 529)(!assign (!index buf (!len buf)) " ")
+(!line 530)(!assign pos (!call fieldsel s pos buf))
+(!line 531)(!assign (!index buf (!len buf)) ")")
+(!line 532)(!assign exp (!call tconcat buf)))(!if (!callmeth1 tok_left_bracket match s pos)
+(!do
+(!line 534)(!assign (!index buf (!len buf)) "(!index ")
+(!line 535)(!assign (!index buf (!len buf)) exp)
+(!line 536)(!assign (!index buf (!len buf)) " ")
+(!line 537)(!assign pos (!call yindex s pos buf))
+(!line 538)(!assign (!index buf (!len buf)) ")")
+(!line 539)(!assign exp (!call tconcat buf)))(!if (!callmeth1 tok_colon match s pos)
+(!do
+(!line 541)(!define (_ posn) ((!callmeth capt_colon match s pos)))
+(!line 542)(!if one
+(!do
+(!line 543)(!assign (!index buf (!len buf)) "(!callmeth1 "))(!do
+(!line 545)(!assign (!index buf (!len buf)) "(!callmeth ")))
+(!line 547)(!assign (!index buf (!len buf)) exp)
+(!line 548)(!assign (!index buf (!len buf)) " ")
+(!line 549)(!assign pos (!call skip_ws s posn))
+(!line 550)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 551)(!if (!not posn)
+(!do
+(!line 552)(!call syntaxerror "<name> expected")))
+(!line 554)(!assign (!index buf (!len buf)) capt)
+(!line 555)(!assign (!index buf (!len buf)) " ")
+(!line 556)(!assign pos (!call skip_ws s posn))
+(!line 557)(!assign pos (!call funcargs s pos buf))
+(!line 558)(!assign (!index buf (!len buf)) ")")
+(!line 559)(!assign exp (!call tconcat buf)))(!if (!or (!or (!callmeth1 tok_left_paren match s pos) (!callmeth tok_left_brace match s pos)) (!callmeth tok_string match s pos))
+(!do
+(!line 561)(!if one
+(!do
+(!line 562)(!assign (!index buf (!len buf)) "(!call1 "))(!do
+(!line 564)(!assign (!index buf (!len buf)) "(!call ")))
+(!line 566)(!assign (!index buf (!len buf)) exp)
+(!line 567)(!assign (!index buf (!len buf)) " ")
+(!line 568)(!assign pos (!call funcargs s pos buf))
+(!line 569)(!assign (!index buf (!len buf)) ")")
+(!line 570)(!assign exp (!call tconcat buf)))(!do
+(!line 572)(!assign (!index buffer (!len buffer)) exp)
+(!line 573)(!return pos)))))))))
+
+(!line 579)(!define simpleexpr)(!assign simpleexpr (!lambda (s pos buffer one)
+(!line 582)(!define (capt posn) ((!callmeth capt_number match s pos)))
+(!line 583)(!if posn
+(!do
+(!line 584)(!assign (!index buffer (!len buffer)) capt)
+(!line 585)(!return posn)))
+(!line 587)(!massign (capt posn) ((!callmeth capt_string match s pos)))
+(!line 588)(!if posn
+(!do
+(!line 589)(!assign (!index buffer (!len buffer)) capt)
+(!line 590)(!return posn)))
+(!line 592)(!massign (capt posn) ((!callmeth capt_nil match s pos)))
+(!line 593)(!if posn
+(!do
+(!line 594)(!assign (!index buffer (!len buffer)) "!nil")
+(!line 595)(!return posn)))
+(!line 597)(!massign (capt posn) ((!callmeth capt_true match s pos)))
+(!line 598)(!if posn
+(!do
+(!line 599)(!assign (!index buffer (!len buffer)) "!true")
+(!line 600)(!return posn)))
+(!line 602)(!massign (capt posn) ((!callmeth capt_false match s pos)))
+(!line 603)(!if posn
+(!do
+(!line 604)(!assign (!index buffer (!len buffer)) "!false")
+(!line 605)(!return posn)))
+(!line 607)(!massign (capt posn) ((!callmeth capt_vararg match s pos)))
+(!line 608)(!if posn
+(!do
+(!line 609)(!assign (!index buffer (!len buffer)) "!vararg")
+(!line 610)(!return posn)))
+(!line 612)(!if (!callmeth1 tok_left_brace match s pos)
+(!do
+(!line 613)(!return (!call constructor s pos buffer))))
+(!line 615)(!massign (capt posn) ((!callmeth capt_function match s pos)))
+(!line 616)(!if posn
+(!do
+(!line 617)(!assign (!index buffer (!len buffer)) "(!lambda ")
+(!line 618)(!assign pos (!call skip_ws s posn))
+(!line 619)(!return (!call body s pos buffer))))
+(!line 621)(!return (!call suffixedexpr s pos buffer one))))
+
+(!line 625)(!define unop ("not": "(!not " "-": "(!neg " "#": "(!len " ))
+(!line 630)(!define binop ("+": "(!add " "-": "(!sub " "*": "(!mul " "/": "(!div " "%": "(!mod " "^": "(!pow " "..": "(!concat " "~=": "(!ne " "==": "(!eq " "<=": "(!le " "<": "(!lt " ">=": "(!ge " ">": "(!gt " "and": "(!and " "or": "(!or " ))
+(!line 647)(!define priority ("+": (6 6) "-": (6 6) "*": (7 7) "/": (7 7) "%": (7 7) "^": (10 9) "..": (5 4) "~=": (3 3) "==": (3 3) "<=": (3 3) "<": (3 3) ">=": (3 3) ">": (3 3) "and": (2 2) "or": (1 1) ))
+(!line 667)(!assign expr (!lambda (s pos buffer one limit)
+(!line 669)(!assign limit (!or limit 0))
+(!line 670)(!define (capt posn) ((!callmeth capt_unopr match s pos)))
+(!line 671)(!define buf ())
+(!line 672)(!if posn
+(!do
+(!line 673)(!assign (!index buf (!len buf)) (!index unop capt))
+(!line 674)(!assign pos (!call skip_ws s posn))
+(!line 675)(!assign pos (!call expr s pos buf !false 8))
+(!line 676)(!assign (!index buf (!len buf)) ")"))(!do
+(!line 678)(!assign pos (!call simpleexpr s pos buf one))))
+(!line 680)(!define exp (!call tconcat buf))
+(!line 681)(!assign pos (!call skip_ws s pos))
+(!line 682)(!massign (capt posn) ((!callmeth capt_binopr match s pos)))
+(!line 683)(!while (!and posn (!gt (!index (!index priority capt) 0) limit))
+
+(!line 684)(!assign buf ((!index binop capt) exp " "))
+(!line 685)(!assign pos (!call skip_ws s posn buf))
+(!line 686)(!assign pos (!call expr s pos buf !false (!index (!index priority capt) 1)))
+(!line 687)(!assign pos (!call skip_ws s pos))
+(!line 688)(!assign (!index buf (!len buf)) ")")
+(!line 689)(!assign exp (!call tconcat buf))
+(!line 690)(!massign (capt posn) ((!callmeth capt_binopr match s pos))))
+(!line 692)(!assign (!index buffer (!len buffer)) exp)
+(!line 693)(!return pos)))
+
+(!line 697)(!define block)(!assign block (!lambda (s pos buffer)
+(!line 699)(!define pos (!call statlist s pos buffer))
+(!line 700)(!assign (!index buffer (!len buffer)) ")")
+(!line 701)(!return pos)))
+
+(!line 705)(!define assignment)(!assign assignment (!lambda (s pos buffer n)
+(!line 707)(!define (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 708)(!if posn
+(!do
+(!line 709)(!if (!eq n 1)
+(!do
+(!line 710)(!define var (!index buffer (!sub (!len buffer) 1)))
+(!line 711)(!assign (!index buffer (!sub (!len buffer) 1)) "(!line ")
+(!line 712)(!assign (!index buffer (!len buffer)) lineno)
+(!line 713)(!assign (!index buffer (!len buffer)) ")(!massign (")
+(!line 714)(!assign (!index buffer (!len buffer)) var)))
+(!line 716)(!assign (!index buffer (!len buffer)) " ")
+(!line 717)(!assign pos (!call skip_ws s posn))
+(!line 718)(!assign pos (!call suffixedexpr s pos buffer))
+(!line 719)(!assign pos (!call skip_ws s pos))
+(!line 720)(!return (!call assignment s pos buffer (!add n 1))))(!do
+(!line 723)(!massign (capt posn) ((!callmeth capt_equal match s pos)))
+(!line 724)(!if (!not posn)
+(!do
+(!line 725)(!call syntaxerror "= expected")))
+(!line 727)(!if (!eq n 1)
+(!do
+(!line 728)(!define var (!index buffer (!sub (!len buffer) 1)))
+(!line 729)(!assign (!index buffer (!sub (!len buffer) 1)) "(!line ")
+(!line 730)(!assign (!index buffer (!len buffer)) lineno)
+(!line 731)(!assign (!index buffer (!len buffer)) ")(!assign ")
+(!line 732)(!assign (!index buffer (!len buffer)) var)
+(!line 733)(!assign (!index buffer (!len buffer)) " "))(!do
+(!line 735)(!assign (!index buffer (!len buffer)) ") (")))
+(!line 737)(!assign pos (!call skip_ws s posn))
+(!line 738)(!assign pos (!call explist s pos buffer))
+(!line 739)(!assign (!index buffer (!len buffer)) ")")
+(!line 740)(!if (!ne n 1)
+(!do
+(!line 741)(!assign (!index buffer (!len buffer)) ")")))
+(!line 743)(!return pos)))))
+
+(!line 748)(!define breakstat)(!assign breakstat (!lambda (s pos buffer)
+(!line 749)(!define (capt posn) ((!callmeth capt_break match s pos)))
+(!line 750)(!call assert posn)
+(!line 751)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 752)(!assign (!index buffer (!len buffer)) lineno)
+(!line 753)(!assign (!index buffer (!len buffer)) ")(!break)")
+(!line 754)(!return posn)))
+
+(!line 758)(!define gotostat)(!assign gotostat (!lambda (s pos buffer)
+(!line 759)(!define (capt posn) ((!callmeth capt_goto match s pos)))
+(!line 760)(!call assert posn)
+(!line 761)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 762)(!assign (!index buffer (!len buffer)) lineno)
+(!line 763)(!assign (!index buffer (!len buffer)) ")(!goto ")
+(!line 764)(!assign pos (!call skip_ws s posn))
+(!line 765)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 766)(!if (!not posn)
+(!do
+(!line 767)(!call syntaxerror "<name> expected")))
+(!line 769)(!assign (!index buffer (!len buffer)) capt)
+(!line 770)(!assign (!index buffer (!len buffer)) ")")
+(!line 771)(!return posn)))
+
+(!line 775)(!define labelstat)(!assign labelstat (!lambda (s pos buffer)
+(!line 777)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 778)(!if (!not posn)
+(!do
+(!line 779)(!call syntaxerror "<name> expected")))
+(!line 781)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 782)(!assign (!index buffer (!len buffer)) lineno)
+(!line 783)(!assign (!index buffer (!len buffer)) ")(!label ")
+(!line 784)(!assign (!index buffer (!len buffer)) capt)
+(!line 785)(!assign (!index buffer (!len buffer)) ")")
+(!line 786)(!assign pos (!call skip_ws s posn))
+(!line 787)(!massign (capt posn) ((!callmeth capt_dbcolon match s pos)))
+(!line 788)(!if (!not posn)
+(!do
+(!line 789)(!call syntaxerror ":: expected")))
+(!line 791)(!return posn)))
+
+(!line 795)(!define whilestat)(!assign whilestat (!lambda (s pos buffer)
+(!line 797)(!define (capt posn) ((!callmeth capt_while match s pos)))
+(!line 798)(!call assert posn)
+(!line 799)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 800)(!assign (!index buffer (!len buffer)) lineno)
+(!line 801)(!assign (!index buffer (!len buffer)) ")(!while ")
+(!line 802)(!assign pos (!call skip_ws s posn))
+(!line 803)(!assign pos (!call expr s pos buffer !true))
+(!line 804)(!assign (!index buffer (!len buffer)) "\x0A")
+(!line 805)(!assign pos (!call skip_ws s pos))
+(!line 806)(!massign (capt posn) ((!callmeth capt_do match s pos)))
+(!line 807)(!if (!not posn)
+(!do
+(!line 808)(!call syntaxerror "do expected")))
+(!line 810)(!assign pos (!call skip_ws s posn))
+(!line 811)(!assign pos (!call block s pos buffer))
+(!line 812)(!assign pos (!call skip_ws s pos))
+(!line 813)(!massign (capt posn) ((!callmeth capt_end match s pos)))
+(!line 814)(!if (!not posn)
+(!do
+(!line 815)(!call syntaxerror "end expected")))
+(!line 817)(!return posn)))
+
+(!line 821)(!define repeatstat)(!assign repeatstat (!lambda (s pos buffer)
+(!line 823)(!define (capt posn) ((!callmeth capt_repeat match s pos)))
+(!line 824)(!call assert posn)
+(!line 825)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 826)(!assign (!index buffer (!len buffer)) lineno)
+(!line 827)(!assign (!index buffer (!len buffer)) ")(!repeat")
+(!line 828)(!assign pos (!call skip_ws s posn))
+(!line 829)(!assign pos (!call statlist s pos buffer))
+(!line 830)(!assign pos (!call skip_ws s pos))
+(!line 831)(!massign (capt posn) ((!callmeth capt_until match s pos)))
+(!line 832)(!if (!not posn)
+(!do
+(!line 833)(!call syntaxerror "until expected")))
+(!line 835)(!assign pos (!call skip_ws s posn))
+(!line 836)(!assign (!index buffer (!len buffer)) "\x0A")
+(!line 837)(!assign pos (!call expr s pos buffer !true))
+(!line 838)(!assign (!index buffer (!len buffer)) ")")
+(!line 839)(!return pos)))
+
+(!line 843)(!define forbody)(!assign forbody (!lambda (s pos buffer name)
+(!line 845)(!assign (!index buffer (!len buffer)) "\x0A")
+(!line 846)(!define (capt posn) ((!callmeth capt_do match s pos)))
+(!line 847)(!if (!not posn)
+(!do
+(!line 848)(!call syntaxerror "do expected")))
+(!line 850)(!if name
+(!do
+(!line 851)(!assign (!index buffer (!len buffer)) "(!define ")
+(!line 852)(!assign (!index buffer (!len buffer)) name)
+(!line 853)(!assign (!index buffer (!len buffer)) " ")
+(!line 854)(!assign (!index buffer (!len buffer)) name)
+(!line 855)(!assign (!index buffer (!len buffer)) ")")))
+(!line 857)(!assign pos (!call skip_ws s posn))
+(!line 858)(!return (!call block s pos buffer))))
+
+(!line 862)(!define fornum)(!assign fornum (!lambda (s pos buffer name)
+(!line 864)(!define (capt posn) ((!callmeth capt_equal match s pos)))
+(!line 865)(!if (!not posn)
+(!do
+(!line 866)(!call syntaxerror "= expected")))
+(!line 868)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 869)(!assign (!index buffer (!len buffer)) lineno)
+(!line 870)(!assign (!index buffer (!len buffer)) ")(!loop ")
+(!line 871)(!assign (!index buffer (!len buffer)) name)
+(!line 872)(!assign (!index buffer (!len buffer)) " ")
+(!line 873)(!assign pos (!call skip_ws s posn))
+(!line 874)(!assign pos (!call expr s pos buffer !true))
+(!line 875)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 876)(!if (!not posn)
+(!do
+(!line 877)(!call syntaxerror ", expected")))
+(!line 879)(!assign (!index buffer (!len buffer)) " ")
+(!line 880)(!assign pos (!call skip_ws s posn))
+(!line 881)(!assign pos (!call expr s pos buffer !true))
+(!line 882)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 883)(!if posn
+(!do
+(!line 884)(!assign (!index buffer (!len buffer)) " ")
+(!line 885)(!assign pos (!call skip_ws s posn))
+(!line 886)(!assign pos (!call expr s pos buffer !true)))(!do
+(!line 888)(!assign (!index buffer (!len buffer)) " 1 ")))
+(!line 890)(!return (!call forbody s pos buffer name))))
+
+(!line 894)(!define forlist)(!assign forlist (!lambda (s pos buffer name1)
+(!line 896)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 897)(!assign (!index buffer (!len buffer)) lineno)
+(!line 898)(!assign (!index buffer (!len buffer)) ")(!for (")
+(!line 899)(!assign (!index buffer (!len buffer)) name1)
+(!line 900)(!define (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 901)(!while posn
+
+(!line 902)(!assign (!index buffer (!len buffer)) " ")
+(!line 903)(!assign pos (!call skip_ws s posn))
+(!line 904)(!define (capt posnn) ((!callmeth capt_identifier match s pos)))
+(!line 905)(!if (!not posnn)
+(!do
+(!line 906)(!call syntaxerror "<name> expected")))
+(!line 908)(!assign (!index buffer (!len buffer)) capt)
+(!line 909)(!assign pos (!call skip_ws s posnn))
+(!line 910)(!massign (capt posn) ((!callmeth capt_comma match s pos))))
+(!line 912)(!massign (capt posn) ((!callmeth capt_in match s pos)))
+(!line 913)(!if (!not posn)
+(!do
+(!line 914)(!call syntaxerror "in expected")))
+(!line 916)(!assign (!index buffer (!len buffer)) ") (")
+(!line 917)(!assign pos (!call skip_ws s posn))
+(!line 918)(!assign pos (!call explist s pos buffer))
+(!line 919)(!assign (!index buffer (!len buffer)) ")")
+(!line 920)(!return (!call forbody s pos buffer))))
+
+(!line 924)(!define forstat)(!assign forstat (!lambda (s pos buffer)
+(!line 926)(!define (capt posn) ((!callmeth capt_for match s pos)))
+(!line 927)(!call assert posn)
+(!line 928)(!assign pos (!call skip_ws s posn))
+(!line 929)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 930)(!if (!not posn)
+(!do
+(!line 931)(!call syntaxerror "<name> expected")))
+(!line 933)(!assign pos (!call skip_ws s posn))
+(!line 934)(!if (!callmeth1 tok_equal match s pos)
+(!do
+(!line 935)(!assign pos (!call fornum s pos buffer capt)))(!if (!or (!callmeth1 tok_comma match s pos) (!callmeth tok_in match s pos))
+(!do
+(!line 937)(!assign pos (!call forlist s pos buffer capt)))(!do
+(!line 939)(!call syntaxerror "'=' or 'in' expected"))))
+(!line 941)(!assign pos (!call skip_ws s pos))
+(!line 942)(!massign (capt posn) ((!callmeth capt_end match s pos)))
+(!line 943)(!if (!not posn)
+(!do
+(!line 944)(!call syntaxerror "end expected")))
+(!line 946)(!return posn)))
+
+(!line 950)(!define test_then_block)(!assign test_then_block (!lambda (s pos buffer)
+(!line 952)(!define (capt posn) ((!callmeth capt_if match s pos)))
+(!line 953)(!if (!not posn)
+(!do
+(!line 954)(!massign (capt posn) ((!callmeth capt_elseif match s pos)))
+(!line 955)(!call assert posn)))
+(!line 957)(!assign (!index buffer (!len buffer)) "(!if ")
+(!line 958)(!assign pos (!call skip_ws s posn))
+(!line 959)(!assign pos (!call expr s pos buffer !true))
+(!line 960)(!assign (!index buffer (!len buffer)) "\x0A")
+(!line 961)(!assign pos (!call skip_ws s pos))
+(!line 962)(!massign (capt posn) ((!callmeth capt_then match s pos)))
+(!line 963)(!if (!not posn)
+(!do
+(!line 964)(!call syntaxerror "then expected")))
+(!line 966)(!assign (!index buffer (!len buffer)) "(!do")
+(!line 967)(!assign pos (!call skip_ws s posn))
+(!line 968)(!return (!call block s pos buffer))))
+
+(!line 971)(!define ifstat)(!assign ifstat (!lambda (s pos buffer)
+(!line 973)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 974)(!assign (!index buffer (!len buffer)) lineno)
+(!line 975)(!assign (!index buffer (!len buffer)) ")")
+(!line 976)(!assign pos (!call test_then_block s pos buffer))
+(!line 977)(!define n 1)
+(!line 978)(!while (!callmeth1 tok_elseif match s pos)
+
+(!line 979)(!assign pos (!call test_then_block s pos buffer))
+(!line 980)(!assign n (!add n 1)))
+(!line 982)(!define (capt posn) ((!callmeth capt_else match s pos)))
+(!line 983)(!if posn
+(!do
+(!line 984)(!assign (!index buffer (!len buffer)) "(!do")
+(!line 985)(!assign pos (!call skip_ws s posn))
+(!line 986)(!assign pos (!call block s pos buffer))))
+(!line 988)(!massign (capt posn) ((!callmeth capt_end match s pos)))
+(!line 989)(!if (!not posn)
+(!do
+(!line 990)(!call syntaxerror "end expected")))
+(!line 992)(!loop i 1 n 1
+(!define i i)
+(!line 993)(!assign (!index buffer (!len buffer)) ")"))
+(!line 995)(!return posn)))
+
+(!line 999)(!define localfunc)(!assign localfunc (!lambda (s pos buffer)
+(!line 1000)(!define (capt posn) ((!callmeth capt_function match s pos)))
+(!line 1001)(!call assert posn)
+(!line 1002)(!assign pos (!call skip_ws s posn))
+(!line 1003)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 1004)(!if (!not posn)
+(!do
+(!line 1005)(!call syntaxerror "<name> expected")))
+(!line 1007)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1008)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1009)(!assign (!index buffer (!len buffer)) ")(!define ")
+(!line 1010)(!assign (!index buffer (!len buffer)) capt)
+(!line 1011)(!assign (!index buffer (!len buffer)) ")(!assign ")
+(!line 1012)(!assign (!index buffer (!len buffer)) capt)
+(!line 1013)(!assign (!index buffer (!len buffer)) " (!lambda ")
+(!line 1014)(!assign pos (!call skip_ws s posn))
+(!line 1015)(!assign pos (!call body s pos buffer))
+(!line 1016)(!assign (!index buffer (!len buffer)) ")\x0A")
+(!line 1017)(!return pos)))
+
+(!line 1021)(!define localstat)(!assign localstat (!lambda (s pos buffer)
+(!line 1023)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1024)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1025)(!assign (!index buffer (!len buffer)) ")(!define ")
+(!line 1026)(!define multi !false)
+(!line 1027)(!define (capt posn))
+(!line 1028)(!repeat
+(!line 1029)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
+(!line 1030)(!if (!not pos)
+(!do
+(!line 1031)(!call syntaxerror "<name> expected")))
+(!line 1033)(!define ident capt)
+(!line 1034)(!assign (!index buffer (!len buffer)) ident)
+(!line 1035)(!assign pos (!call skip_ws s posn))
+(!line 1036)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
+(!line 1037)(!if posn
+(!do
+(!line 1038)(!if (!not multi)
+(!do
+(!line 1039)(!assign multi !true)
+(!line 1040)(!assign (!index buffer (!sub (!len buffer) 1)) "(")
+(!line 1041)(!assign (!index buffer (!len buffer)) ident)))
+(!line 1043)(!assign (!index buffer (!len buffer)) " ")
+(!line 1044)(!assign pos (!call skip_ws s posn))))
+(!not posn))
+(!line 1047)(!if multi
+(!do
+(!line 1048)(!assign (!index buffer (!len buffer)) ")")))
+(!line 1050)(!massign (capt posn) ((!callmeth capt_equal match s pos)))
+(!line 1051)(!if posn
+(!do
+(!line 1052)(!assign (!index buffer (!len buffer)) " ")
+(!line 1053)(!if multi
+(!do
+(!line 1054)(!assign (!index buffer (!len buffer)) "(")))
+(!line 1056)(!assign pos (!call skip_ws s posn buffer))
+(!line 1057)(!assign pos (!call explist s pos buffer))
+(!line 1058)(!if multi
+(!do
+(!line 1059)(!assign (!index buffer (!len buffer)) ")")))))
+(!line 1062)(!assign (!index buffer (!len buffer)) ")")
+(!line 1063)(!return pos)))
+
+(!line 1067)(!define funcname)(!assign funcname (!lambda (s pos buffer)
+(!line 1069)(!define (exp posn) ((!callmeth capt_identifier match s pos)))
+(!line 1070)(!if (!not posn)
+(!do
+(!line 1071)(!call syntaxerror "identifier expected")))
+(!line 1073)(!assign pos (!call skip_ws s posn))
+(!line 1074)(!assign posn (!callmeth tok_dot match s pos))
+(!line 1075)(!while posn
+
+(!line 1076)(!define buf ("(!index " exp " "))
+(!line 1077)(!assign pos (!call fieldsel s pos buf))
+(!line 1078)(!assign (!index buf (!len buf)) ")")
+(!line 1079)(!assign exp (!call tconcat buf))
+(!line 1080)(!assign pos (!call skip_ws s pos))
+(!line 1081)(!assign posn (!callmeth tok_dot match s pos)))
+(!line 1083)(!assign posn (!callmeth tok_colon match s pos))
+(!line 1084)(!if posn
+(!do
+(!line 1085)(!define buf ("(!index " exp " "))
+(!line 1086)(!assign pos (!call fieldsel s pos buf))
+(!line 1087)(!assign (!index buf (!len buf)) ")")
+(!line 1088)(!assign exp (!call tconcat buf))
+(!line 1089)(!assign pos (!call skip_ws s pos))))
+(!line 1091)(!assign (!index buffer (!len buffer)) exp)
+(!line 1092)(!return pos posn)))
+
+(!line 1096)(!define funcstat)(!assign funcstat (!lambda (s pos buffer)
+(!line 1098)(!define (capt posn) ((!callmeth capt_function match s pos)))
+(!line 1099)(!call assert posn)
+(!line 1100)(!assign pos (!call skip_ws s posn))
+(!line 1101)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1102)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1103)(!assign (!index buffer (!len buffer)) ")(!assign ")
+(!line 1104)(!define (posn ismethod) ((!call funcname s pos buffer)))
+(!line 1105)(!assign (!index buffer (!len buffer)) " (!lambda ")
+(!line 1106)(!assign pos (!call skip_ws s posn))
+(!line 1107)(!assign pos (!call body s pos buffer ismethod))
+(!line 1108)(!assign (!index buffer (!len buffer)) ")\x0A")
+(!line 1109)(!return pos)))
+
+(!line 1113)(!define exprstat)(!assign exprstat (!lambda (s pos buffer)
+(!line 1115)(!define buf ())
+(!line 1116)(!define lineno lineno)
+(!line 1117)(!assign pos (!call suffixedexpr s pos buf))
+(!line 1118)(!assign pos (!call skip_ws s pos))
+(!line 1119)(!if (!or (!callmeth1 tok_equal match s pos) (!callmeth tok_comma match s pos))
+(!do
+(!line 1120)(!assign (!index buffer (!len buffer)) (!call tconcat buf))
+(!line 1121)(!return (!call assignment s pos buffer 1)))(!do
+(!line 1123)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1124)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1125)(!assign (!index buffer (!len buffer)) ")")
+(!line 1126)(!assign (!index buffer (!len buffer)) (!call tconcat buf))
+(!line 1127)(!return pos)))))
+
+(!line 1132)(!define retstat)(!assign retstat (!lambda (s pos buffer)
+(!line 1134)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1135)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1136)(!assign (!index buffer (!len buffer)) ")(!return ")
+(!line 1137)(!if (!and (!not (!call block_follow s pos !true)) (!not (!callmeth tok_semicolon match s pos)))
+(!do
+(!line 1138)(!assign pos (!call explist s pos buffer))))
+(!line 1140)(!assign (!index buffer (!len buffer)) ")")
+(!line 1141)(!define (capt posn) ((!callmeth capt_semicolon match s pos)))
+(!line 1142)(!if posn
+(!do
+(!line 1143)(!return posn)))
+(!line 1145)(!return pos)))
+
+(!line 1149)(!assign statement (!lambda (s pos buffer)
+(!line 1151)(!assign pos (!call skip_ws s pos))
+(!line 1152)(!define (capt posn) ((!callmeth capt_semicolon match s pos)))
+(!line 1153)(!if posn
+(!do
+(!line 1154)(!return posn)))
+(!line 1157)(!if (!callmeth1 tok_if match s pos)
+(!do
+(!line 1158)(!return (!call ifstat s pos buffer))))
+(!line 1161)(!if (!callmeth1 tok_while match s pos)
+(!do
+(!line 1162)(!return (!call whilestat s pos buffer))))
+(!line 1165)(!massign (capt posn) ((!callmeth capt_do match s pos)))
+(!line 1166)(!if posn
+(!do
+(!line 1167)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 1168)(!assign (!index buffer (!len buffer)) lineno)
+(!line 1169)(!assign (!index buffer (!len buffer)) ")(!do")
+(!line 1170)(!assign pos (!call block s posn buffer))
+(!line 1171)(!massign (capt posn) ((!callmeth capt_end match s pos)))
+(!line 1172)(!if posn
+(!do
+(!line 1173)(!return posn))(!do
+(!line 1175)(!call syntaxerror "'end' expected")))))
+(!line 1179)(!if (!callmeth1 tok_for match s pos)
+(!do
+(!line 1180)(!return (!call forstat s pos buffer))))
+(!line 1183)(!if (!callmeth1 tok_repeat match s pos)
+(!do
+(!line 1184)(!return (!call repeatstat s pos buffer))))
+(!line 1187)(!if (!callmeth1 tok_function match s pos)
+(!do
+(!line 1188)(!return (!call funcstat s pos buffer))))
+(!line 1191)(!massign (capt posn) ((!callmeth capt_local match s pos)))
+(!line 1192)(!if posn
+(!do
+(!line 1193)(!assign pos (!call skip_ws s posn))
+(!line 1194)(!if (!callmeth1 tok_function match s pos)
+(!do
+(!line 1195)(!return (!call localfunc s pos buffer)))(!do
+(!line 1197)(!return (!call localstat s pos buffer))))))
+(!line 1201)(!massign (capt posn) ((!callmeth capt_dbcolon match s pos)))
+(!line 1202)(!if posn
+(!do
+(!line 1203)(!assign pos (!call skip_ws s posn))
+(!line 1204)(!return (!call labelstat s pos buffer))))
+(!line 1207)(!massign (capt posn) ((!callmeth capt_return match s pos)))
+(!line 1208)(!if posn
+(!do
+(!line 1209)(!assign pos (!call skip_ws s posn))
+(!line 1210)(!return (!call retstat s pos buffer))))
+(!line 1213)(!if (!callmeth1 tok_break match s pos)
+(!do
+(!line 1214)(!return (!call breakstat s pos buffer))))
+(!line 1217)(!if (!callmeth1 tok_goto match s pos)
+(!do
+(!line 1218)(!return (!call gotostat s pos buffer))))
+(!line 1221)(!return (!call exprstat s pos buffer))))
+
+(!line 1225)(!define translate)(!assign translate (!lambda (s fname)
+(!line 1226)(!if (!callmeth1 bytecode match s)
+(!do
+(!line 1227)(!return s)))
+(!line 1229)(!define pos (!or (!callmeth (!call sequence bom position) match s 0) 0))
+(!line 1230)(!assign pos (!or (!callmeth (!call sequence shebang position) match s pos) pos))
+(!line 1231)(!assign lineno 1)
+(!line 1232)(!define buffer ("(!line " (!call quote fname) " " lineno ")"))
+(!line 1233)(!assign pos (!call statlist s pos buffer))
+(!line 1234)(!if (!not (!callmeth eos match s pos))
+(!do
+(!line 1235)(!call syntaxerror (!concat "<eof> expected at " pos))))
+(!line 1237)(!assign (!index buffer (!len buffer)) "\x0A; end of generation")
+(!line 1238)(!return (!call tconcat buffer))))
+
+(!line 1241)(!assign (!index _G "_COMPILER") translate)
+(!line 1243)(!define fname (!and arg (!index arg 1)))
+(!line 1244)(!if fname
+(!do
+(!line 1245)(!define (f msg) ((!call (!index (!index _G "io") "open") fname "r")))
+(!line 1246)(!if (!not f)
+(!do
+(!line 1247)(!call error msg)))
+(!line 1249)(!define s (!callmeth f read "*a"))
+(!line 1250)(!callmeth f close )
+(!line 1251)(!define code (!call translate s fname))
+(!line 1252)(!call print "; bootstrap")
+(!line 1253)(!call print code)))
+; end of generation

@@ -1,4 +1,4 @@
-luajit
+tvmjit
 lj_bcdef.h
 lj_ffdef.h
 lj_libdef.h

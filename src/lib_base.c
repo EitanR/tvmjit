@@ -11,7 +11,7 @@
 #define lib_base_c
 #define LUA_LIB
 
-#include "lua.h"
+#include "tvmjit.h"
 #include "lauxlib.h"
 #include "lualib.h"
 
@@ -105,19 +105,6 @@ LJLIB_ASM(pairs)
   return ffh_pairs(L, MM_pairs);
 }
 
-LJLIB_NOREGUV LJLIB_ASM(ipairs_aux)	LJLIB_REC(.)
-{
-  lj_lib_checktab(L, 1);
-  lj_lib_checkint(L, 2);
-  return FFH_UNREACHABLE;
-}
-
-LJLIB_PUSH(lastcl)
-LJLIB_ASM(ipairs)		LJLIB_REC(.)
-{
-  return ffh_pairs(L, MM_ipairs);
-}
-
 /* -- Base library: getters and setters ----------------------------------- */
 
 LJLIB_ASM_(getmetatable)	LJLIB_REC(.)
@@ -199,7 +186,6 @@ LJLIB_CF(rawequal)		LJLIB_REC(.)
   return 1;
 }
 
-#if LJ_52
 LJLIB_CF(rawlen)		LJLIB_REC(.)
 {
   cTValue *o = L->base;
@@ -210,28 +196,6 @@ LJLIB_CF(rawlen)		LJLIB_REC(.)
     len = (int32_t)lj_tab_len(lj_lib_checktab(L, 1));
   setintV(L->top-1, len);
   return 1;
-}
-#endif
-
-LJLIB_CF(unpack)
-{
-  GCtab *t = lj_lib_checktab(L, 1);
-  int32_t n, i = lj_lib_optint(L, 2, 1);
-  int32_t e = (L->base+3-1 < L->top && !tvisnil(L->base+3-1)) ?
-	      lj_lib_checkint(L, 3) : (int32_t)lj_tab_len(t);
-  if (i > e) return 0;
-  n = e - i + 1;
-  if (n <= 0 || !lua_checkstack(L, n))
-    lj_err_caller(L, LJ_ERR_UNPACK);
-  do {
-    cTValue *tv = lj_tab_getint(t, i);
-    if (tv) {
-      copyTV(L, L->top++, tv);
-    } else {
-      setnilV(L->top++);
-    }
-  } while (i++ < e);
-  return n;
 }
 
 LJLIB_CF(select)		LJLIB_REC(.)
@@ -420,11 +384,6 @@ LJLIB_CF(load)
   return load_aux(L, status, 4);
 }
 
-LJLIB_CF(loadstring)
-{
-  return lj_cf_load(L);
-}
-
 LJLIB_CF(dofile)
 {
   GCstr *fname = lj_lib_optstr(L, 1);
@@ -463,33 +422,6 @@ LJLIB_CF(collectgarbage)
 }
 
 /* -- Base library: miscellaneous functions ------------------------------- */
-
-LJLIB_PUSH(top-2)  /* Upvalue holds weak table. */
-LJLIB_CF(newproxy)
-{
-  lua_settop(L, 1);
-  lua_newuserdata(L, 0);
-  if (lua_toboolean(L, 1) == 0) {  /* newproxy(): without metatable. */
-    return 1;
-  } else if (lua_isboolean(L, 1)) {  /* newproxy(true): with metatable. */
-    lua_newtable(L);
-    lua_pushvalue(L, -1);
-    lua_pushboolean(L, 1);
-    lua_rawset(L, lua_upvalueindex(1));  /* Remember mt in weak table. */
-  } else {  /* newproxy(proxy): inherit metatable. */
-    int validproxy = 0;
-    if (lua_getmetatable(L, 1)) {
-      lua_rawget(L, lua_upvalueindex(1));
-      validproxy = lua_toboolean(L, -1);
-      lua_pop(L, 1);
-    }
-    if (!validproxy)
-      lj_err_arg(L, 1, LJ_ERR_NOPROXY);
-    lua_getmetatable(L, 1);
-  }
-  lua_setmetatable(L, 2);
-  return 1;
-}
 
 LJLIB_PUSH("tostring")
 LJLIB_CF(print)
@@ -567,15 +499,9 @@ LJLIB_CF(coroutine_status)
 
 LJLIB_CF(coroutine_running)
 {
-#if LJ_52
   int ismain = lua_pushthread(L);
   setboolV(L->top++, ismain);
   return 2;
-#else
-  if (lua_pushthread(L))
-    setnilV(L->top++);
-  return 1;
-#endif
 }
 
 LJLIB_CF(coroutine_create)
@@ -658,25 +584,14 @@ static void setpc_wrap_aux(lua_State *L, GCfunc *fn)
 
 /* ------------------------------------------------------------------------ */
 
-static void newproxy_weaktable(lua_State *L)
-{
-  /* NOBARRIER: The table is new (marked white). */
-  GCtab *t = lj_tab_new(L, 0, 1);
-  settabV(L, L->top++, t);
-  setgcref(t->metatable, obj2gco(t));
-  setstrV(L, lj_tab_setstr(L, t, lj_str_newlit(L, "__mode")),
-	    lj_str_newlit(L, "kv"));
-  t->nomm = (uint8_t)(~(1u<<MM_mode));
-}
-
 LUALIB_API int luaopen_base(lua_State *L)
 {
   /* NOBARRIER: Table and value are the same. */
   GCtab *env = tabref(L->env);
   settabV(L, lj_tab_setstr(L, env, lj_str_newlit(L, "_G")), env);
-  lua_pushliteral(L, LUA_VERSION);  /* top-3. */
-  newproxy_weaktable(L);  /* top-2. */
   LJ_LIB_REG(L, "_G", base);
+  lua_pushliteral(L, TVMJIT_VERSION);
+  lua_setfield(L, -2, "_VERSION");
   LJ_LIB_REG(L, LUA_COLIBNAME, coroutine);
   return 2;
 }

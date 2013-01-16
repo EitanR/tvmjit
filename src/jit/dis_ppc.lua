@@ -1,8 +1,11 @@
 ----------------------------------------------------------------------------
 -- LuaJIT PPC disassembler module.
 --
--- Copyright (C) 2005-2012 Mike Pall. All rights reserved.
--- Released under the MIT/X license. See Copyright Notice in luajit.h
+-- Copyright (C) 2013 Francois Perrad.
+--
+-- Major portions taken verbatim or adapted from the LuaJIT.
+-- Copyright (C) 2005-2012 Mike Pall.
+-- Released under the MIT license.
 ----------------------------------------------------------------------------
 -- This is a helper module used by the LuaJIT machine code dumper module.
 --
@@ -583,9 +586,8 @@ local function regname_(r)
 end
 
 -- Public module functions.
-module(...)
-
-create = create_
-disass = disass_
-regname = regname_
-
+return {
+    create =    create_,
+    disass =    disass_,
+    regname =   regname_,
+}

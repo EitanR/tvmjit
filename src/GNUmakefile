@@ -1,5 +1,5 @@
 ##############################################################################
-# LuaJIT Makefile. Requires GNU Make.
+# TvmJIT Makefile. Requires GNU Make.
 #
 # Please read doc/install.html before changing any variables!
 #
@@ -7,12 +7,15 @@
 # Also works with MinGW and Cygwin on Windows.
 # Please check msvcbuild.bat for building with MSVC on Windows.
 #
-# Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+# Copyright (C) 2013 Francois Perrad.
+#
+# Major portions taken verbatim or adapted from the LuaJIT.
+# Copyright (C) 2005-2012 Mike Pall.
 ##############################################################################
 
-MAJVER=  2
+MAJVER=  0
 MINVER=  0
-RELVER=  0
+RELVER=  1
 ABIVER=  5.1
 NODOTABIVER= 51
 
@@ -24,7 +27,7 @@ NODOTABIVER= 51
 # removing the '#' in front of them. Make sure you force a full recompile
 # with "make clean", followed by "make" if you change any options.
 #
-# LuaJIT builds as a native 32 or 64 bit binary by default.
+# TvmJIT builds as a native 32 or 64 bit binary by default.
 CC= gcc
 #
 # Use this if you want to force a 32 bit build on a 64 bit multilib OS.
@@ -71,13 +74,13 @@ CCWARN= -Wall
 # The default build mode is mixed mode on POSIX. On Windows this is the same
 # as dynamic mode.
 #
-# Mixed mode creates a static + dynamic library and a statically linked luajit.
+# Mixed mode creates a static + dynamic library and a statically linked tvmjit.
 BUILDMODE= mixed
 #
-# Static mode creates a static library and a statically linked luajit.
+# Static mode creates a static library and a statically linked tvmjit.
 #BUILDMODE= static
 #
-# Dynamic mode creates a dynamic library and a dynamically linked luajit.
+# Dynamic mode creates a dynamic library and a dynamically linked tvmjit.
 # Note: this executable will only run when the library is installed!
 #BUILDMODE= dynamic
 #
@@ -90,7 +93,7 @@ BUILDMODE= mixed
 # recompile with "make clean", followed by "make".
 XCFLAGS=
 #
-# Permanently disable the FFI extension to reduce the size of the LuaJIT
+# Permanently disable the FFI extension to reduce the size of the TvmJIT
 # executable. But please consider that the FFI library is compiled-in,
 # but NOT loaded by default. It only allocates any memory, if you actually
 # make use of it.
@@ -100,9 +103,9 @@ XCFLAGS=
 # enabled by default. Some other features that *might* break some existing
 # code (e.g. __pairs or os.execute() return values) can be enabled here.
 # Note: this does not provide full compatibility with Lua 5.2 at this time.
-#XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT
+XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT
 #
-# Disable the JIT compiler, i.e. turn LuaJIT into a pure interpreter.
+# Disable the JIT compiler, i.e. turn TvmJIT into a pure interpreter.
 #XCFLAGS+= -DLUAJIT_DISABLE_JIT
 #
 # Some architectures (e.g. PPC) can use either single-number (1) or
@@ -126,7 +129,7 @@ XCFLAGS=
 # cannot be enabled on x64, since the built-in allocator is mandatory.
 #XCFLAGS+= -DLUAJIT_USE_SYSMALLOC
 #
-# This define is required to run LuaJIT under Valgrind. The Valgrind
+# This define is required to run TvmJIT under Valgrind. The Valgrind
 # header files must be installed. You should enable debug information, too.
 # Use --suppressions=lj.supp to avoid some false positives.
 #XCFLAGS+= -DLUAJIT_USE_VALGRIND
@@ -140,8 +143,8 @@ XCFLAGS=
 # This is rather slow -- use only while developing C libraries/embeddings.
 #XCFLAGS+= -DLUA_USE_APICHECK
 #
-# Turn on assertions for the whole LuaJIT VM. This significantly slows down
-# everything. Use only if you suspect a problem with LuaJIT itself.
+# Turn on assertions for the whole TvmJIT VM. This significantly slows down
+# everything. Use only if you suspect a problem with TvmJIT itself.
 #XCFLAGS+= -DLUA_USE_ASSERT
 #
 ##############################################################################
@@ -188,10 +191,10 @@ TARGET_LD= $(CROSS)$(CC)
 TARGET_AR= $(CROSS)ar rcus
 TARGET_STRIP= $(CROSS)strip
 
-TARGET_SONAME= libluajit-$(ABIVER).so.$(MAJVER)
-TARGET_DYLIBNAME= libluajit-$(ABIVER).$(MAJVER).dylib
+TARGET_SONAME= libtvmjit-$(ABIVER).so.$(MAJVER)
+TARGET_DYLIBNAME= libtvmjit-$(ABIVER).$(MAJVER).dylib
 TARGET_DYLIBPATH= $(or $(PREFIX),/usr/local)/lib/$(TARGET_DYLIBNAME)
-TARGET_DLLNAME= lua$(NODOTABIVER).dll
+TARGET_DLLNAME= tvm$(NODOTABIVER).dll
 TARGET_XSHLDFLAGS= -shared -fPIC -Wl,-soname,$(TARGET_SONAME)
 TARGET_DYNXLDOPTS=
 
@@ -249,7 +252,7 @@ TARGET_ARCH+= $(patsubst %,-DLUAJIT_TARGET=LUAJIT_ARCH_%,$(TARGET_LJARCH))
 
 ifneq (,$(PREFIX))
 ifneq (/usr/local,$(PREFIX))
-  TARGET_XCFLAGS+= -DLUA_XROOT=\"$(PREFIX)/\"
+  TARGET_XCFLAGS+= -DTVM_XROOT=\"$(PREFIX)/\"
   ifneq (/usr,$(PREFIX))
     TARGET_DYNXLDOPTS= -Wl,-rpath,$(PREFIX)/lib
   endif
@@ -442,13 +445,14 @@ LJVM_BOUT= $(LJVM_S)
 LJVM_MODE= elfasm
 
 LJLIB_O= lib_base.o lib_math.o lib_bit.o lib_string.o lib_table.o \
-	 lib_io.o lib_os.o lib_package.o lib_debug.o lib_jit.o lib_ffi.o
+	 lib_io.o lib_os.o lib_package.o lib_debug.o lib_jit.o lib_ffi.o \
+	 lib_peg.o
 LJLIB_C= $(LJLIB_O:.o=.c)
 
 LJCORE_O= lj_gc.o lj_err.o lj_char.o lj_bc.o lj_obj.o \
 	  lj_str.o lj_tab.o lj_func.o lj_udata.o lj_meta.o lj_debug.o \
 	  lj_state.o lj_dispatch.o lj_vmevent.o lj_vmmath.o lj_strscan.o \
-	  lj_api.o lj_lex.o lj_parse.o lj_bcread.o lj_bcwrite.o lj_load.o \
+	  lj_api.o tj_lex.o tj_parse.o lj_bcread.o lj_bcwrite.o lj_load.o \
 	  lj_ir.o lj_opt_mem.o lj_opt_fold.o lj_opt_narrow.o \
 	  lj_opt_dce.o lj_opt_loop.o lj_opt_split.o lj_opt_sink.o \
 	  lj_mcode.o lj_snap.o lj_record.o lj_crecord.o lj_ffrecord.o \
@@ -464,12 +468,15 @@ LJVMCORE_DYNO= $(LJVMCORE_O:.o=_dyn.o)
 LIB_VMDEF= jit/vmdef.lua
 LIB_VMDEFP= $(LIB_VMDEF)
 
-LUAJIT_O= luajit.o
-LUAJIT_A= libluajit.a
-LUAJIT_SO= libluajit.so
-LUAJIT_T= luajit
+LIB_JIT= jit/vmdef.tp jit/bc.tp jit/bcsave.tp jit/dump.tp jit/v.tp \
+         jit/dis_arm.tp jit/dis_mips.tp jit/dis_mipsel.tp jit/dis_ppc.tp jit/dis_x64.tp jit/dis_x86.tp
 
-ALL_T= $(LUAJIT_T) $(LUAJIT_A) $(LUAJIT_SO) $(HOST_T)
+TVMJIT_O= tvmjit.o
+TVMJIT_A= libtvmjit.a
+TVMJIT_SO= libtvmjit.so
+TVMJIT_T= tvmjit
+
+ALL_T= $(TVMJIT_T) $(TVMJIT_A) $(TVMJIT_SO) $(HOST_T) $(LIB_JIT)
 ALL_HDRGEN= lj_bcdef.h lj_ffdef.h lj_libdef.h lj_recdef.h lj_folddef.h \
 	    host/buildvm_arch.h
 ALL_GEN= $(LJVM_S) $(ALL_HDRGEN) $(LIB_VMDEFP)
@@ -481,18 +488,18 @@ ALL_RM= $(ALL_T) $(ALL_GEN) *.o host/*.o $(WIN_RM)
 ##############################################################################
 
 # Mixed mode defaults.
-TARGET_O= $(LUAJIT_A)
-TARGET_T= $(LUAJIT_T) $(LUAJIT_SO)
-TARGET_DEP= $(LIB_VMDEF) $(LUAJIT_SO)
+TARGET_O= $(TVMJIT_A)
+TARGET_T= $(TVMJIT_T) $(TVMJIT_SO)
+TARGET_DEP= $(LIB_VMDEF) $(TVMJIT_SO)
 
 ifeq (Windows,$(TARGET_SYS))
   TARGET_DYNCC= $(STATIC_CC)
   LJVM_MODE= coffasm
-  LUAJIT_T= luajit.exe
+  TVMJIT_T= tvmjit.exe
   ifeq (cygwin,$(HOST_MSYS))
-    LUAJIT_SO= cyg$(TARGET_DLLNAME)
+    TVMJIT_SO= cyg$(TARGET_DLLNAME)
   else
-    LUAJIT_SO= $(TARGET_DLLNAME)
+    TVMJIT_SO= $(TARGET_DLLNAME)
   endif
   # Mixed mode is not supported on Windows. And static mode doesn't work well.
   # C modules cannot be loaded, because they bind to lua51.dll.
@@ -526,7 +533,7 @@ endif
 
 ifeq (static,$(BUILDMODE))
   TARGET_DYNCC= @:
-  TARGET_T= $(LUAJIT_T)
+  TARGET_T= $(TVMJIT_T)
   TARGET_DEP= $(LIB_VMDEF)
 else
 ifeq (dynamic,$(BUILDMODE))
@@ -535,7 +542,7 @@ ifeq (dynamic,$(BUILDMODE))
   endif
   TARGET_DYNCC= @:
   LJVMCORE_DYNO= $(LJVMCORE_O)
-  TARGET_O= $(LUAJIT_SO)
+  TARGET_O= $(TVMJIT_SO)
   TARGET_XLDFLAGS+= $(TARGET_DYNXLDOPTS)
 else
 ifeq (Darwin,$(TARGET_SYS))
@@ -558,7 +565,7 @@ E= @echo
 # Make targets.
 ##############################################################################
 
-default all:	$(TARGET_T)
+default all:	$(TARGET_T) $(LIB_JIT)
 
 amalg:
 	@grep "^[+|]" ljamalg.c
@@ -573,10 +580,10 @@ depend:
 	  done
 	@$(HOST_CC) $(HOST_ACFLAGS) -MM *.c host/*.c | \
 	  sed -e "s| [^ ]*/dasm_\S*\.h||g" \
-	      -e "s|^\([^l ]\)|host/\1|" \
+	      -e "s|^\([^lt ]\)|host/\1|" \
 	      -e "s| lj_target_\S*\.h| lj_target_*.h|g" \
 	      -e "s| lj_emit_\S*\.h| lj_emit_*.h|g" \
-	      -e "s| lj_asm_\S*\.h| lj_asm_*.h|g" >Makefile.dep
+	      -e "s| lj_asm_\S*\.h| lj_asm_*.h|g" >makefile.dep
 	@for file in $(ALL_HDRGEN); do \
 	  test -s $$file || $(HOST_RM) $$file; \
 	  done
@@ -643,7 +650,7 @@ lj_folddef.h: $(BUILDVM_T) lj_opt_fold.c
 	$(Q)$(TARGET_DYNCC) $(TARGET_ACFLAGS) -c -o $(@:.o=_dyn.o) $<
 	$(Q)$(TARGET_CC) $(TARGET_ACFLAGS) -c -o $@ $<
 
-$(LUAJIT_O):
+$(TVMJIT_O):
 	$(E) "CC        $@"
 	$(Q)$(TARGET_STCC) $(TARGET_ACFLAGS) -c -o $@ $<
 
@@ -651,26 +658,82 @@ $(HOST_O): %.o: %.c
 	$(E) "HOSTCC    $@"
 	$(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
 
-include Makefile.dep
+include makefile.dep
 
 ##############################################################################
 # Target file rules.
 ##############################################################################
 
-$(LUAJIT_A): $(LJVMCORE_O)
+$(TVMJIT_A): $(LJVMCORE_O)
 	$(E) "AR        $@"
 	$(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
 
 # The dependency on _O, but linking with _DYNO is intentional.
-$(LUAJIT_SO): $(LJVMCORE_O)
+$(TVMJIT_SO): $(LJVMCORE_O)
 	$(E) "DYNLINK   $@"
 	$(Q)$(TARGET_LD) $(TARGET_ASHLDFLAGS) -o $@ $(LJVMCORE_DYNO) $(TARGET_ALIBS)
 	$(Q)$(TARGET_STRIP) $@
 
-$(LUAJIT_T): $(TARGET_O) $(LUAJIT_O) $(TARGET_DEP)
+$(TVMJIT_T): $(TARGET_O) $(TVMJIT_O) $(TARGET_DEP)
 	$(E) "LINK      $@"
-	$(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(LUAJIT_O) $(TARGET_O) $(TARGET_ALIBS)
+	$(Q)$(TARGET_LD) $(TARGET_ALDFLAGS) -o $@ $(TVMJIT_O) $(TARGET_O) $(TARGET_ALIBS)
 	$(Q)$(TARGET_STRIP) $@
-	$(E) "OK        Successfully built LuaJIT"
+	$(E) "OK        Successfully built TvmJIT"
+
+##############################################################################
+# Lua.
+##############################################################################
+
+RUN_TVMJIT := ./$(TVMJIT_T)
+
+lua/lunokhod.tp: lua/lunokhod.lua
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp lua/lunokhod.lua > lua/lunokhod.j
+	$(Q)cp lua/lunokhod.j lua/lunokhod.tp
+	$(Q)rm lua/lunokhod.j
+
+jit/vmdef.tp: jit/vmdef.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/bc.tp: jit/bc.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/bcsave.tp: jit/bcsave.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dump.tp: jit/dump.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/v.tp: jit/v.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_arm.tp: jit/dis_arm.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_mips.tp: jit/dis_mips.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_mipsel.tp: jit/dis_mipsel.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_ppc.tp: jit/dis_ppc.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_x64.tp: jit/dis_x64.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+jit/dis_x86.tp: jit/dis_x86.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
 
 ##############################################################################

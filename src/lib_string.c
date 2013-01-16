@@ -1,9 +1,11 @@
 /*
 ** String library.
-** Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2013 Francois Perrad.
 **
+** Major portions taken verbatim or adapted from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
 #include <stdio.h>
@@ -37,28 +39,28 @@ LJLIB_ASM(string_len)		LJLIB_REC(.)
   return FFH_RETRY;
 }
 
-LJLIB_ASM(string_byte)		LJLIB_REC(string_range 0)
+LJLIB_CF(string_byte)
 {
   GCstr *s = lj_lib_checkstr(L, 1);
   int32_t len = (int32_t)s->len;
-  int32_t start = lj_lib_optint(L, 2, 1);
+  int32_t start = lj_lib_optint(L, 2, 0);
   int32_t stop = lj_lib_optint(L, 3, start);
   int32_t n, i;
   const unsigned char *p;
-  if (stop < 0) stop += len+1;
-  if (start < 0) start += len+1;
-  if (start <= 0) start = 1;
-  if (stop > len) stop = len;
-  if (start > stop) return FFH_RES(0);  /* Empty interval: return no results. */
-  start--;
+  if (stop < 0) stop += len;
+  if (start < 0) start += len;
+  if (start < 0) start = 0;
+  if (stop > len-1) stop = len-1;
+  if (start > stop) return 0;  /* Empty interval: return no results. */
+  stop++;
   n = stop - start;
   if ((uint32_t)n > LUAI_MAXCSTACK)
     lj_err_caller(L, LJ_ERR_STRSLC);
   lj_state_checkstack(L, (MSize)n);
   p = (const unsigned char *)strdata(s) + start;
   for (i = 0; i < n; i++)
-    setintV(L->base + i-1, p[i]);
-  return FFH_RES(n);
+    lua_pushinteger(L, p[i]);
+  return n;
 }
 
 LJLIB_ASM(string_char)
@@ -75,12 +77,47 @@ LJLIB_ASM(string_char)
   return FFH_RES(1);
 }
 
-LJLIB_ASM(string_sub)		LJLIB_REC(string_range 1)
+LJLIB_CF(string_wchar)
 {
-  lj_lib_checkstr(L, 1);
-  lj_lib_checkint(L, 2);
-  setintV(L->base+2, lj_lib_optint(L, 3, -1));
-  return FFH_RETRY;
+  int i, nargs = (int)(L->top - L->base);
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  for (i = 1; i <= nargs; i++) {
+    int32_t k = lj_lib_checkint(L, i);
+    if ((k < 0) || (k > 0xffff))
+      lj_err_arg(L, i, LJ_ERR_BADVAL);
+    if (k >= 0x0800) {
+      luaL_addchar(&b, 0xE0 | (k >> 12));
+      luaL_addchar(&b, 0x80 | ((k >> 6) & 0x3f));
+      luaL_addchar(&b, 0x80 | (k & 0x3f));
+    }
+    else if (k >= 0x0080) {
+      luaL_addchar(&b, 0xC0 | (k >> 6));
+      luaL_addchar(&b, 0x80 | (k & 0x3f));
+    }
+    else
+      luaL_addchar(&b, k);
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+LJLIB_CF(string_sub)
+{
+  GCstr *s = lj_lib_checkstr(L, 1);
+  int32_t len = (int32_t)s->len;
+  int32_t start = lj_lib_checkint(L, 2);
+  int32_t end = lj_lib_optint(L, 3, -1);
+  int32_t n;
+  if (end < 0) end += len;
+  if (start < 0) start += len;
+  if (start < 0) start = 0;
+  if (end > len-1) end = len-1;
+  n = end - start + 1;
+  if (n > 0)
+    lua_pushlstring(L, strdata(s) + start, n);
+  else lua_pushliteral(L, "");
+  return 1;
 }
 
 LJLIB_ASM(string_rep)
@@ -504,7 +541,7 @@ static int push_captures(MatchState *ms, const char *s, const char *e)
 static ptrdiff_t posrelat(ptrdiff_t pos, size_t len)
 {
   /* relative string position: negative means back from end */
-  if (pos < 0) pos += (ptrdiff_t)len + 1;
+  if (pos < 0) pos += (ptrdiff_t)len;
   return (pos >= 0) ? pos : 0;
 }
 
@@ -513,24 +550,20 @@ static int str_find_aux(lua_State *L, int find)
   size_t l1, l2;
   const char *s = luaL_checklstring(L, 1, &l1);
   const char *p = luaL_checklstring(L, 2, &l2);
-  ptrdiff_t init = posrelat(luaL_optinteger(L, 3, 1), l1) - 1;
+  ptrdiff_t init = posrelat(luaL_optinteger(L, 3, 0), l1);
   if (init < 0) {
     init = 0;
-  } else if ((size_t)(init) > l1) {
-#if LJ_52
+  } else if ((size_t)(init) >= l1) {
     setnilV(L->top-1);
     return 1;
-#else
-    init = (ptrdiff_t)l1;
-#endif
   }
   if (find && (lua_toboolean(L, 4) ||  /* explicit request? */
       strpbrk(p, SPECIALS) == NULL)) {  /* or no special characters? */
     /* do a plain search */
     const char *s2 = lmemfind(s+init, l1-(size_t)init, p, l2);
     if (s2) {
-      lua_pushinteger(L, s2-s+1);
-      lua_pushinteger(L, s2-s+(ptrdiff_t)l2);
+      lua_pushinteger(L, s2-s);
+      lua_pushinteger(L, s2-s+(ptrdiff_t)l2-1);
       return 2;
     }
   } else {
@@ -545,8 +578,8 @@ static int str_find_aux(lua_State *L, int find)
       ms.level = ms.depth = 0;
       if ((res=match(&ms, s1, p)) != NULL) {
 	if (find) {
-	  lua_pushinteger(L, s1-s+1);  /* start */
-	  lua_pushinteger(L, res-s);   /* end */
+	  lua_pushinteger(L, s1-s);  /* start */
+	  lua_pushinteger(L, res-s-1);   /* end */
 	  return push_captures(&ms, NULL, 0) + 2;
 	} else {
 	  return push_captures(&ms, s1, res);
@@ -708,29 +741,43 @@ LJLIB_CF(string_gsub)
 */
 #define MAX_FMTSPEC	(sizeof(FMT_FLAGS) + sizeof(LUA_INTFRMLEN) + 10)
 
+static void addescaped(lua_State *L, luaL_Buffer *b, int arg)
+{
+  GCstr *str = lj_lib_checkstr(L, arg);
+  int32_t len = (int32_t)str->len;
+  const char *s = strdata(str);
+  while (len--) {
+    uint32_t c = uchar(*s);
+    if (c == '(' || c == ')' || c == ':' || lj_char_isspace(c)) {
+      luaL_addchar(b, '\\');
+    }
+    luaL_addchar(b, c);
+    s++;
+  }
+}
+
 static void addquoted(lua_State *L, luaL_Buffer *b, int arg)
 {
   GCstr *str = lj_lib_checkstr(L, arg);
   int32_t len = (int32_t)str->len;
   const char *s = strdata(str);
+  const char *e = s + len;
   luaL_addchar(b, '"');
-  while (len--) {
+  while (s < e) {
     uint32_t c = uchar(*s);
-    if (c == '"' || c == '\\' || c == '\n') {
+    if (c == '"' || c == '\\' || (c == '\n' && len > 32)) {
       luaL_addchar(b, '\\');
-    } else if (lj_char_iscntrl(c)) {  /* This can only be 0-31 or 127. */
-      uint32_t d;
+      luaL_addchar(b, c);
+    } else if (c < ' ') {
+      uint32_t h = c >> 4;
+      uint32_t l = c & 0x0F;
       luaL_addchar(b, '\\');
-      if (c >= 100 || lj_char_isdigit(uchar(s[1]))) {
-	luaL_addchar(b, '0'+(c >= 100)); if (c >= 100) c -= 100;
-	goto tens;
-      } else if (c >= 10) {
-      tens:
-	d = (c * 205) >> 11; c -= d * 10; luaL_addchar(b, '0'+d);
-      }
-      c += '0';
+      luaL_addchar(b, 'x');
+      luaL_addchar(b, (h >= 0x0A) ? 'A'-10+h: '0'+h);
+      luaL_addchar(b, (l >= 0x0A) ? 'A'-10+l: '0'+l);
+    } else {
+      luaL_addchar(b, c);
     }
-    luaL_addchar(b, c);
     s++;
   }
   luaL_addchar(b, '"');
@@ -916,6 +963,24 @@ LJLIB_CF(string_format)
   return 1;
 }
 
+LJLIB_CF(string_escape)
+{
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  addescaped(L, &b, 1);
+  luaL_pushresult(&b);
+  return 1;
+}
+
+LJLIB_CF(string_quote)
+{
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  addquoted(L, &b, 1);
+  luaL_pushresult(&b);
+  return 1;
+}
+
 /* ------------------------------------------------------------------------ */
 
 #include "lj_libdef.h"
@@ -925,10 +990,6 @@ LUALIB_API int luaopen_string(lua_State *L)
   GCtab *mt;
   global_State *g;
   LJ_LIB_REG(L, LUA_STRLIBNAME, string);
-#if defined(LUA_COMPAT_GFIND) && !LJ_52
-  lua_getfield(L, -1, "gmatch");
-  lua_setfield(L, -2, "gfind");
-#endif
   mt = lj_tab_new(L, 0, 1);
   /* NOBARRIER: basemt is a GC root. */
   g = G(L);

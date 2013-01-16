@@ -1,0 +1,10 @@
+
+platform:
+        - port msvcbuild.bat
+
+architecture:
+        - fix BC_TSETM in vm_(arm|mips|ppc|ppcspe).dasc
+                (array starts at 0)
+
+doc:
+        - fix man tvmjit.1

@@ -24,7 +24,7 @@
 #include "lj_trace.h"
 #include "lj_dispatch.h"
 #include "lj_vm.h"
-#include "lj_lex.h"
+#include "tj_parse.h"
 #include "lj_alloc.h"
 
 /* -- Stack handling ------------------------------------------------------ */
@@ -145,7 +145,7 @@ static TValue *cpluaopen(lua_State *L, lua_CFunction dummy, void *ud)
   settabV(L, registry(L), lj_tab_new(L, 0, LJ_MIN_REGISTRY));
   lj_str_resize(L, LJ_MIN_STRTAB-1);
   lj_meta_init(L);
-  lj_lex_init(L);
+  lj_parse_init(L);
   fixstring(lj_err_str(L, LJ_ERR_ERRMEM));  /* Preallocate memory error msg. */
   g->gc.threshold = 4*g->gc.total;
   lj_trace_initstate(g);

@@ -1,34 +1,30 @@
 /*
 ** Lexical analyzer.
-** Major parts taken verbatim from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 2013 Francois Perrad.
+**
+** Major parts taken verbatim from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
+** Major portions taken verbatim or adapted from the Lua interpreter.
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
-#ifndef _LJ_LEX_H
-#define _LJ_LEX_H
+#ifndef _TJ_LEX_H
+#define _TJ_LEX_H
 
 #include <stdarg.h>
 
 #include "lj_obj.h"
 #include "lj_err.h"
 
-/* Lua lexer tokens. */
-#define TKDEF(_, __) \
-  _(and) _(break) _(do) _(else) _(elseif) _(end) _(false) \
-  _(for) _(function) _(goto) _(if) _(in) _(local) _(nil) _(not) _(or) \
-  _(repeat) _(return) _(then) _(true) _(until) _(while) \
-  __(concat, ..) __(dots, ...) __(eq, ==) __(ge, >=) __(le, <=) __(ne, ~=) \
-  __(label, ::) __(number, <number>) __(name, <name>) __(string, <string>) \
-  __(eof, <eof>)
+/* tVM lexer tokens. */
+#define TKDEF(_) \
+  _(number, <number>) _(name, <name>) _(string, <string>) _(eof, <eof>)
 
 enum {
   TK_OFS = 256,
-#define TKENUM1(name)		TK_##name,
-#define TKENUM2(name, sym)	TK_##name,
-TKDEF(TKENUM1, TKENUM2)
-#undef TKENUM1
-#undef TKENUM2
-  TK_RESERVED = TK_while - TK_OFS
+#define TKENUM(name, sym)	TK_##name,
+TKDEF(TKENUM)
+#undef TKENUM
 };
 
 typedef int LexToken;
@@ -46,17 +42,16 @@ typedef struct VarInfo {
   BCPos endpc;		/* First point where the local variable is dead. */
   uint8_t slot;		/* Variable slot. */
   uint8_t info;		/* Variable/goto/label info. */
+  uint8_t final;
 } VarInfo;
 
 /* Lua lexer state. */
 typedef struct LexState {
-  struct FuncState *fs;	/* Current FuncState. Defined in lj_parse.c. */
+  struct FuncState *fs;	/* Current FuncState. Defined in tj_parse.c. */
   struct lua_State *L;	/* Lua state. */
   TValue tokenval;	/* Current token value. */
-  TValue lookaheadval;	/* Lookahead token value. */
   int current;		/* Current character (charint). */
   LexToken token;	/* Current token. */
-  LexToken lookahead;	/* Lookahead token. */
   MSize n;		/* Bytes left in input buffer. */
   const char *p;	/* Current position in input buffer. */
   SBuf sb;		/* String buffer for tokens. */
@@ -78,9 +73,7 @@ typedef struct LexState {
 LJ_FUNC int lj_lex_setup(lua_State *L, LexState *ls);
 LJ_FUNC void lj_lex_cleanup(lua_State *L, LexState *ls);
 LJ_FUNC void lj_lex_next(LexState *ls);
-LJ_FUNC LexToken lj_lex_lookahead(LexState *ls);
 LJ_FUNC const char *lj_lex_token2str(LexState *ls, LexToken token);
 LJ_FUNC_NORET void lj_lex_error(LexState *ls, LexToken token, ErrMsg em, ...);
-LJ_FUNC void lj_lex_init(lua_State *L);
 
 #endif

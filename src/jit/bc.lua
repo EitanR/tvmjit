@@ -1,47 +1,50 @@
 ----------------------------------------------------------------------------
--- LuaJIT bytecode listing module.
+-- TvmJIT bytecode listing module.
 --
--- Copyright (C) 2005-2012 Mike Pall. All rights reserved.
--- Released under the MIT license. See Copyright Notice in luajit.h
+-- Copyright (C) 2013 Francois Perrad.
+--
+-- Major portions taken verbatim or adapted from the LuaJIT.
+-- Copyright (C) 2005-2012 Mike Pall.
+-- Released under the MIT license.
 ----------------------------------------------------------------------------
 --
--- This module lists the bytecode of a Lua function. If it's loaded by -jbc
+-- This module lists the bytecode of a tVM function. If it's loaded by -jbc
 -- it hooks into the parser and lists all functions of a chunk as they
 -- are parsed.
 --
 -- Example usage:
 --
---   luajit -jbc -e 'local x=0; for i=1,1e6 do x=x+i end; print(x)'
---   luajit -jbc=- foo.lua
---   luajit -jbc=foo.list foo.lua
+--   tvmjit -jbc -e '(!loop i 1 1000 1 (!loop j 1 1000 1))'
+--   tvmjit -jbc=- foo.tp
+--   tvmjit -jbc=foo.list foo.tp
 --
 -- Default output is to stderr. To redirect the output to a file, pass a
 -- filename as an argument (use '-' for stdout) or set the environment
--- variable LUAJIT_LISTFILE. The file is overwritten every time the module
+-- variable TVMJIT_LISTFILE. The file is overwritten every time the module
 -- is started.
 --
 -- This module can also be used programmatically:
 --
---   local bc = require("jit.bc")
+--   (!let bc (!call require "jit.bc"))
 --
---   local function foo() print("hello") end
+--   (!let foo (!lambda () (!call print "hello")))
 --
---   bc.dump(foo)           --> -- BYTECODE -- [...]
---   print(bc.line(foo, 2)) --> 0002    KSTR     1   1      ; "hello"
+--   (!call (!index bc "dump") foo)                     ;--> -- BYTECODE -- [...]
+--   (!call print (!call (!index bc "line") foo 2))     ; --> 0002    KSTR     1   1      ; "hello"
 --
---   local out = {
---     -- Do something with each line:
---     write = function(t, ...) io.write(...) end,
---     close = function(t) end,
---     flush = function(t) end,
---   }
---   bc.dump(foo, out)
+--   (!let out (
+--     ; Do something with each line:
+--     "write": (!lambda function (t !vararg) (!callmeth (!index io "write") !vararg))
+--     "close": (!lambda (t))
+--     "flush": (!lambda (t))
+--   )
+--   (!call (!index bc "dump") foo out)
 --
 ------------------------------------------------------------------------------
 
 -- Cache some library functions and objects.
 local jit = require("jit")
-assert(jit.version_num == 20000, "LuaJIT core/library version mismatch")
+assert(jit.version_num == 00001, "TvmJIT core/library version mismatch")
 local jutil = require("jit.util")
 local vmdef = require("jit.vmdef")
 local bit = require("bit")
@@ -70,7 +73,7 @@ local function bcline(func, pc, prefix)
   local ma, mb, mc = band(m, 7), band(m, 15*8), band(m, 15*128)
   local a = band(shr(ins, 8), 0xff)
   local oidx = 6*band(ins, 0xff)
-  local op = sub(bcnames, oidx+1, oidx+6)
+  local op = sub(bcnames, oidx, oidx+5)
   local s = format("%04d %s %-6s %3s ",
     pc, prefix or "  ", op, ma == 0 and "" or a)
   local d = shr(ins, 16)
@@ -169,7 +172,7 @@ end
 -- Open the output file and attach list handler.
 local function bcliston(outfile)
   if active then bclistoff() end
-  if not outfile then outfile = os.getenv("LUAJIT_LISTFILE") end
+  if not outfile then outfile = os.getenv("TVMJIT_LISTFILE") end
   if outfile then
     out = outfile == "-" and stdout or assert(io.open(outfile, "w"))
   else
@@ -180,13 +183,12 @@ local function bcliston(outfile)
 end
 
 -- Public module functions.
-module(...)
+return {
+    line =      bcline,
+    dump =      bcdump,
+    targets =   bctargets,
 
-line = bcline
-dump = bcdump
-targets = bctargets
-
-on = bcliston
-off = bclistoff
-start = bcliston -- For -j command line option.
-
+    on =        bcliston,
+    off =       bclistoff,
+    start =     bcliston,       -- For -j command line option.
+ }

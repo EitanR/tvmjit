@@ -1,9 +1,11 @@
 /*
 ** Table library.
-** Copyright (C) 2005-2012 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2013 Francois Perrad.
 **
+** Major portions taken verbatim or adapted from the LuaJIT.
+** Copyright (C) 2005-2012 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */
 
 #define lib_table_c
@@ -23,77 +25,10 @@
 
 #define LJLIB_MODULE_table
 
-LJLIB_CF(table_foreachi)
+LJLIB_CF(table_insert)
 {
   GCtab *t = lj_lib_checktab(L, 1);
-  GCfunc *func = lj_lib_checkfunc(L, 2);
-  MSize i, n = lj_tab_len(t);
-  for (i = 1; i <= n; i++) {
-    cTValue *val;
-    setfuncV(L, L->top, func);
-    setintV(L->top+1, i);
-    val = lj_tab_getint(t, (int32_t)i);
-    if (val) { copyTV(L, L->top+2, val); } else { setnilV(L->top+2); }
-    L->top += 3;
-    lua_call(L, 2, 1);
-    if (!tvisnil(L->top-1))
-      return 1;
-    L->top--;
-  }
-  return 0;
-}
-
-LJLIB_CF(table_foreach)
-{
-  GCtab *t = lj_lib_checktab(L, 1);
-  GCfunc *func = lj_lib_checkfunc(L, 2);
-  L->top = L->base+3;
-  setnilV(L->top-1);
-  while (lj_tab_next(L, t, L->top-1)) {
-    copyTV(L, L->top+2, L->top);
-    copyTV(L, L->top+1, L->top-1);
-    setfuncV(L, L->top, func);
-    L->top += 3;
-    lua_call(L, 2, 1);
-    if (!tvisnil(L->top-1))
-      return 1;
-    L->top--;
-  }
-  return 0;
-}
-
-LJLIB_ASM(table_getn)		LJLIB_REC(.)
-{
-  lj_lib_checktab(L, 1);
-  return FFH_UNREACHABLE;
-}
-
-LJLIB_CF(table_maxn)
-{
-  GCtab *t = lj_lib_checktab(L, 1);
-  TValue *array = tvref(t->array);
-  Node *node;
-  lua_Number m = 0;
-  ptrdiff_t i;
-  for (i = (ptrdiff_t)t->asize - 1; i >= 0; i--)
-    if (!tvisnil(&array[i])) {
-      m = (lua_Number)(int32_t)i;
-      break;
-    }
-  node = noderef(t->node);
-  for (i = (ptrdiff_t)t->hmask; i >= 0; i--)
-    if (!tvisnil(&node[i].val) && tvisnumber(&node[i].key)) {
-      lua_Number n = numberVnum(&node[i].key);
-      if (n > m) m = n;
-    }
-  setnumV(L->top-1, m);
-  return 1;
-}
-
-LJLIB_CF(table_insert)		LJLIB_REC(.)
-{
-  GCtab *t = lj_lib_checktab(L, 1);
-  int32_t n, i = (int32_t)lj_tab_len(t) + 1;
+  int32_t n, i = (int32_t)lj_tab_len(t);
   int nargs = (int)((char *)L->top - (char *)L->base);
   if (nargs != 2*sizeof(TValue)) {
     if (nargs != 3*sizeof(TValue))
@@ -122,9 +57,9 @@ LJLIB_CF(table_insert)		LJLIB_REC(.)
 LJLIB_CF(table_remove)		LJLIB_REC(.)
 {
   GCtab *t = lj_lib_checktab(L, 1);
-  int32_t e = (int32_t)lj_tab_len(t);
+  int32_t e = (int32_t)lj_tab_len(t) - 1;
   int32_t pos = lj_lib_optint(L, 2, e);
-  if (!(1 <= pos && pos <= e))  /* Nothing to remove? */
+  if (!(0 <= pos && pos <= e))  /* Nothing to remove? */
     return 0;
   lua_rawgeti(L, 1, pos);  /* Get previous value. */
   /* NOBARRIER: This just moves existing elements around. */
@@ -147,9 +82,9 @@ LJLIB_CF(table_concat)
   GCtab *t = lj_lib_checktab(L, 1);
   GCstr *sep = lj_lib_optstr(L, 2);
   MSize seplen = sep ? sep->len : 0;
-  int32_t i = lj_lib_optint(L, 3, 1);
+  int32_t i = lj_lib_optint(L, 3, 0);
   int32_t e = L->base+3 < L->top ? lj_lib_checkint(L, 4) :
-				   (int32_t)lj_tab_len(t);
+				   (int32_t)lj_tab_len(t) - 1;
   luaL_buffinit(L, &b);
   if (i <= e) {
     for (;;) {
@@ -262,27 +197,46 @@ LJLIB_CF(table_sort)
   lua_settop(L, 2);
   if (!tvisnil(L->base+1))
     lj_lib_checkfunc(L, 2);
-  auxsort(L, 1, n);
+  auxsort(L, 0, n-1);
   return 0;
 }
 
-#if LJ_52
 LJLIB_PUSH("n")
 LJLIB_CF(table_pack)
 {
   TValue *array, *base = L->base;
   MSize i, n = (uint32_t)(L->top - base);
-  GCtab *t = lj_tab_new(L, n ? n+1 : 0, 1);
+  GCtab *t = lj_tab_new(L, n ? n : 0, 1);
   /* NOBARRIER: The table is new (marked white). */
   setintV(lj_tab_setstr(L, t, strV(lj_lib_upvalue(L, 1))), (int32_t)n);
-  for (array = tvref(t->array) + 1, i = 0; i < n; i++)
+  for (array = tvref(t->array), i = 0; i < n; i++)
     copyTV(L, &array[i], &base[i]);
   settabV(L, base, t);
   L->top = base+1;
   lj_gc_check(L);
   return 1;
 }
-#endif
+
+LJLIB_CF(table_unpack)
+{
+  GCtab *t = lj_lib_checktab(L, 1);
+  int32_t n, i = lj_lib_optint(L, 2, 0);
+  int32_t e = (L->base+3-1 < L->top && !tvisnil(L->base+3-1)) ?
+	      lj_lib_checkint(L, 3) : (int32_t)lj_tab_len(t) - 1;
+  if (i > e) return 0;
+  n = e - i + 1;
+  if (n <= 0 || !lua_checkstack(L, n))
+    lj_err_caller(L, LJ_ERR_UNPACK);
+  do {
+    cTValue *tv = lj_tab_getint(t, i);
+    if (tv) {
+      copyTV(L, L->top++, tv);
+    } else {
+      setnilV(L->top++);
+    }
+  } while (i++ < e);
+  return n;
+}
 
 /* ------------------------------------------------------------------------ */
 
@@ -291,10 +245,6 @@ LJLIB_CF(table_pack)
 LUALIB_API int luaopen_table(lua_State *L)
 {
   LJ_LIB_REG(L, LUA_TABLIBNAME, table);
-#if LJ_52
-  lua_getglobal(L, "unpack");
-  lua_setfield(L, -2, "unpack");
-#endif
   return 1;
 }
 

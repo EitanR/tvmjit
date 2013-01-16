@@ -102,12 +102,8 @@ static int io_file_close(lua_State *L, IOFileUD *iof)
     lua_assert(0);
     return 0;
 #endif
-#if LJ_52
     iof->fp = NULL;
     return luaL_execresult(L, stat);
-#else
-    ok = (stat != -1);
-#endif
   } else {
     lua_assert((iof->type & IOFILE_TYPE_MASK) == IOFILE_TYPE_STDF);
     setnilV(L->top++);
@@ -427,11 +423,7 @@ LJLIB_CF(io_popen)
 LJLIB_CF(io_tmpfile)
 {
   IOFileUD *iof = io_file_new(L);
-#if LJ_TARGET_PS3
-  iof->fp = NULL; errno = ENOSYS;
-#else
   iof->fp = tmpfile();
-#endif
   return iof->fp != NULL ? 1 : luaL_fileresult(L, 0, NULL);
 }
 

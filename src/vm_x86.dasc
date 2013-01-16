@@ -5212,6 +5212,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sub RD, KBASE
     |  shl KBASE, 3
     |  add KBASE, TAB:RB->array
+    |  sub KBASE, 8
     |3:  // Copy result slots to table.
     |.if X64
     |  mov RBa, [RA]

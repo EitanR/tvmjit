@@ -34,23 +34,14 @@
 LJLIB_CF(os_execute)
 {
 #if LJ_TARGET_CONSOLE
-#if LJ_52
   errno = ENOSYS;
   return luaL_fileresult(L, 0, NULL);
 #else
-  lua_pushinteger(L, -1);
-  return 1;
-#endif
-#else
   const char *cmd = luaL_optstring(L, 1, NULL);
   int stat = system(cmd);
-#if LJ_52
   if (cmd)
     return luaL_execresult(L, stat);
   setboolV(L->top++, 1);
-#else
-  setintV(L->top++, stat);
-#endif
   return 1;
 #endif
 }
@@ -70,10 +61,6 @@ LJLIB_CF(os_rename)
 
 LJLIB_CF(os_tmpname)
 {
-#if LJ_TARGET_PS3
-  lj_err_caller(L, LJ_ERR_OSUNIQF);
-  return 0;
-#else
 #if LJ_TARGET_POSIX
   char buf[15+1];
   int fp;
@@ -90,7 +77,6 @@ LJLIB_CF(os_tmpname)
 #endif
   lua_pushstring(L, buf);
   return 1;
-#endif
 }
 
 LJLIB_CF(os_getenv)

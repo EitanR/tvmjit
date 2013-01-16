@@ -16,7 +16,7 @@
 #include "lj_ctype.h"
 #include "lj_cdata.h"
 #endif
-#include "lj_lex.h"
+#include "tj_lex.h"
 #include "lj_bcdump.h"
 #include "lj_state.h"
 
