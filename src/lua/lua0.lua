@@ -10,14 +10,14 @@
 --
 
 arg = {}
-require 'lua/lunokhod'  -- load the compiler
+local compiler = require 'lua/lunokhod'
 
 local function print_version ()
     print "Lua0\tCopyright (C) 2013 Francois Perrad"
 end
 
 local function dostring (chunk, name)
-    local code = _G._COMPILER(chunk, name)
+    local code = compiler(chunk, name)
     assert(load(code, name))()
 end
 
@@ -51,7 +51,7 @@ local function handle_script (argv, script)
         chunk = fh:read'*a'
         fh:close()
     end
-    local code = _G._COMPILER(chunk, fname)
+    local code = compiler(chunk, fname)
     assert(load(code, fname))(table.unpack(arg))
 end
 
@@ -65,7 +65,7 @@ local function dotty ()
     while line do
         if #line > 0 then
             local r, msg = pcall(function ()
-                        local code = _G._COMPILER(line, name)
+                        local code = compiler(line, name)
                         assert(load(code, name))()
             end)
             if not r then

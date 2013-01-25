@@ -997,7 +997,6 @@
 (!line 1237)(!assign (!index buffer (!len buffer)) "\x0A; end of generation")
 (!line 1238)(!return (!call tconcat buffer))))
 
-(!line 1241)(!assign (!index _G "_COMPILER") translate)
 (!line 1243)(!define fname (!and arg (!index arg 1)))
 (!line 1244)(!if fname
 (!do
@@ -1009,5 +1008,6 @@
 (!line 1250)(!callmeth f close )
 (!line 1251)(!define code (!call translate s fname))
 (!line 1252)(!call print "; bootstrap")
-(!line 1253)(!call print code)))
+(!line 1253)(!call print code))(!do
+(!line 1255)(!return translate)))
 ; end of generation

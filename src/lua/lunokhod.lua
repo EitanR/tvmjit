@@ -1238,7 +1238,7 @@ local function translate (s, fname)
     return tconcat(buffer)
 end
 
-_G._COMPILER = translate
+
 
 local fname = arg and arg[1]
 if fname then
@@ -1251,5 +1251,7 @@ if fname then
     local code = translate(s, fname)
     print "; bootstrap"
     print(code)
+else
+    return translate
 end
 
