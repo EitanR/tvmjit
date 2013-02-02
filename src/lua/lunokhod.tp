@@ -88,7 +88,7 @@
 (!line 137)(!return (!call char n)))))
 (!line 140)(!define unescape (!lambda (str)
 (!line 141)(!return (!callmeth gsub_escape_special match (!callmeth gsub_escape_xdigit match (!callmeth gsub_escape_decimal match str))))))
-(!line 144)(!define zap (!call replace (!call sequence (!call literal "\\z") (!call some (!call set "\x0A\x0D"))) ""))
+(!line 144)(!define zap (!call replace (!call sequence (!call literal "\\z") (!call some (!call set "\x0A\x0D")) (!call some (!call literal " "))) ""))
 (!line 145)(!define ch_sq (!call choice zap (!call literal "\\\\") (!call literal "\\'") (!call except (!call any ) (!call literal "'") (!call range "\x00\x1F"))))
 (!line 146)(!define ch_dq (!call choice zap (!call literal "\\\\") (!call literal "\\\"") (!call except (!call any ) (!call literal "\"") (!call range "\x00\x1F"))))
 (!line 147)(!define simple_quote_string (!call replace (!call replace (!call sequence (!call literal "'") (!call subst (!call many ch_sq)) (!call literal "'")) unescape) quote))

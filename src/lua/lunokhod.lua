@@ -141,7 +141,7 @@ local unescape = function(str)
     return gsub_escape_special:match(gsub_escape_xdigit:match(gsub_escape_decimal:match(str)))
 end
 
-local zap = replace(sequence(literal"\\z", some(set"\n\r")), "")
+local zap = replace(sequence(literal"\\z", some(set"\n\r"), some(literal" ")), "")
 local ch_sq = choice(zap, literal"\\\\", literal"\\'", except(any(), literal"'", range'\0\31'))
 local ch_dq = choice(zap, literal'\\\\', literal'\\"', except(any(), literal'"', range'\0\31'))
 local simple_quote_string = replace(replace(sequence(literal"'", subst(many(ch_sq)), literal"'"), unescape), quote)
