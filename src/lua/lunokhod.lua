@@ -21,6 +21,7 @@ local not_followed_by = peg.not_followed_by
 local eos = peg.eos()
 local except = peg.except
 local group = peg.group
+local locale = peg.locale()
 local literal = peg.literal
 local many = peg.many
 local matchtime = peg.matchtime
@@ -90,15 +91,13 @@ local ch_ident = range('09', 'AZ', 'az', '__')
 local identifier = sequence(range('AZ', 'az', '__'), many(ch_ident))
 local capt_identifier = sequence(replace(identifier, check_reserved), position)
 
-local digit = range'09'
-local int = some(digit)
-local frac = sequence(literal'.', many(digit))
+local int = some(locale.digit)
+local frac = sequence(literal'.', many(locale.digit))
 local sign = set'-+'
-local exp = sequence(set'Ee', optional(sign), some(digit))
-local xdigit = range('09', 'AF', 'af')
-local xint = sequence(literal'0', set'xX', some(xdigit))
-local xfrac = sequence(literal'.', many(xdigit))
-local xexp = sequence(set'Pp', optional(sign), some(digit))
+local exp = sequence(set'Ee', optional(sign), some(locale.digit))
+local xint = sequence(literal'0', set'xX', some(locale.xdigit))
+local xfrac = sequence(literal'.', many(locale.xdigit))
+local xexp = sequence(set'Pp', optional(sign), some(locale.digit))
 local number = choice(sequence(xint, optional(xfrac), optional(xexp)),
                       sequence(optional(literal'-'), int, optional(frac), optional(exp)))
 local capt_number = sequence(capture(number), position)
@@ -124,11 +123,11 @@ local special = {
 
 local escape_special = sequence(literal'\\', capture(set"'\"\\/abfnrtv"))
 local gsub_escape_special = gsub(escape_special, special)
-local escape_xdigit = sequence(literal'\\x', capture(sequence(xdigit, xdigit)))
+local escape_xdigit = sequence(literal'\\x', capture(sequence(locale.xdigit, locale.xdigit)))
 local gsub_escape_xdigit = gsub(escape_xdigit, function (s)
                                                     return char(tonumber(s, 16))
                                                end)
-local escape_decimal = sequence(literal'\\', capture(sequence(digit, optional(digit), optional(digit))))
+local escape_decimal = sequence(literal'\\', capture(sequence(locale.digit, optional(locale.digit), optional(locale.digit))))
 local gsub_escape_decimal = gsub(escape_decimal, function (s)
                                                     local n = tonumber(s)
                                                     if n >= 256 then
@@ -141,7 +140,7 @@ local unescape = function(str)
     return gsub_escape_special:match(gsub_escape_xdigit:match(gsub_escape_decimal:match(str)))
 end
 
-local zap = replace(sequence(literal"\\z", some(set"\n\r"), some(literal" ")), "")
+local zap = replace(sequence(literal"\\z", some(set"\n\r"), some(locale.space)), "")
 local ch_sq = choice(zap, literal"\\\\", literal"\\'", except(any(), literal"'", range'\0\31'))
 local ch_dq = choice(zap, literal'\\\\', literal'\\"', except(any(), literal'"', range'\0\31'))
 local simple_quote_string = replace(replace(sequence(literal"'", subst(many(ch_sq)), literal"'"), unescape), quote)
