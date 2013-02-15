@@ -2572,7 +2572,7 @@ static void parse_line (LexState *ls)
     lj_lex_next(ls);
   }
   if (ls->token == TK_number) {
-    ls->linenumber = intV(&ls->tokenval);
+    ls->linenumber = numV(&ls->tokenval);
     lj_lex_next(ls);
   }
   lex_check(ls, ')');

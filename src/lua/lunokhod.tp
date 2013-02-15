@@ -1,5 +1,5 @@
 ; bootstrap
-(!line "lua/lunokhod.lua" 1)
+(!line "@lua/lunokhod.lua" 1)
 (!line 7)(!define _G _G)
 (!line 8)(!define arg arg)
 (!line 9)(!define assert assert)
@@ -1005,7 +1005,7 @@
 (!line 1246)(!call error msg)))
 (!line 1248)(!define s (!callmeth f read "*a"))
 (!line 1249)(!callmeth f close )
-(!line 1250)(!define code (!call translate s fname))
+(!line 1250)(!define code (!call translate s (!concat "@" fname)))
 (!line 1251)(!call print "; bootstrap")
 (!line 1252)(!call print code))(!do
 (!line 1254)(!return translate)))

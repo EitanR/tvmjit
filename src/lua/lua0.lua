@@ -51,7 +51,7 @@ local function handle_script (argv, script)
         chunk = fh:read'*a'
         fh:close()
     end
-    local code = compiler(chunk, fname)
+    local code = compiler(chunk, '@' .. fname)
     assert(load(code, fname))(table.unpack(arg))
 end
 

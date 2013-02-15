@@ -1247,7 +1247,7 @@ if fname then
     end
     local s = f:read'*a'
     f:close()
-    local code = translate(s, fname)
+    local code = translate(s, '@' .. fname)
     print "; bootstrap"
     print(code)
 else
