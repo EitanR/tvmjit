@@ -565,7 +565,7 @@ E= @echo
 # Make targets.
 ##############################################################################
 
-default all:	$(TARGET_T) $(LIB_JIT) lua/lua0.tp
+default all:	$(TARGET_T) $(LIB_JIT) lua/lua0.tp nqp/translator.tp nqp/nqp.tp
 
 amalg:
 	@grep "^[+|]" ljamalg.c
@@ -698,6 +698,16 @@ lua/lua0.tp: lua/lua0.lua lua/lunokhod.tp
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
 	$(Q)chmod +x $@
 
+nqp/translator.tp: nqp/translator.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
+
+nqp/nqp.tp: nqp/nqp.lua lua/lunokhod.tp
+	$(E) "GEN     $@"
+	$(Q)echo "#!/usr/local/bin/tvmjit" > $@
+	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
+	$(Q)chmod +x $@
+
 jit/vmdef.tp: jit/vmdef.lua lua/lunokhod.tp
 	$(E) "GEN     $@"
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
@@ -794,7 +804,10 @@ test-json: json/parser_recdescent.tp \
            ../t/json/test
 	prove --exec="$(RUN_TVMJIT)" ../t/json/*.t
 
-fulltest: test test-codegen test-dump test-json
+test-nqp:
+	prove --exec="$(RUN_TVMJIT) nqp/nqp.tp" ../t/nqp/*.t
+
+fulltest: test test-codegen test-dump test-json test-nqp
 
 .PHONY: sanity test test-dump test-codegen test-json fulltest
 
