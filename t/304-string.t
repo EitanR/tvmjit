@@ -34,7 +34,7 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 120)
+(!call plan 124)
 
 (!call is (!call byte "ABC") 65 "function byte")
 (!call is (!call byte "ABC" 0) 65)
@@ -112,6 +112,7 @@
 (!call is (!call format "pi = %.4f" (!index math "pi")) "pi = 3.1416" "function format")
 (!let d 5)(!let m 11)(!let y 1990)
 (!call is (!call format "%02d/%02d/%04d" d m y) "05/11/1990")
+(!call is (!call format "%X %x" 126 126) "7E 7e")
 (!let (tag title)("h1" "a title"))
 (!call is (!call format "<%s>%s</%s>" tag title tag) "<h1>a title</h1>")
 
@@ -184,6 +185,10 @@
 (!call is (!call gsub "hello world" "(%w+)" "%1 %1") "hello hello world world" "function gsub")
 (!call is (!call gsub "hello world" "%w+" "%0 %0" 1) "hello hello world")
 (!call is (!call gsub "hello world from Lua" "(%w+)%s*(%w+)" "%2 %1") "world hello Lua from")
+(!call todo "LuaJIT TODO. gsub." 1)
+(!call error_contains (!lambda () (!call gsub "hello world" "%w+" "%e"))
+                      ": invalid use of '%' in replacement string"
+                      "function gsub (invalid replacement string)")
 (!call is (!call gsub "home = $HOME, user = $USER" "%$(%w+)" reverse) "home = EMOH, user = RESU")
 (!call is (!call gsub "4+5 = $(!return (!add 4 5))$" "%$(.-)%$" (!lambda (s) (!return (!call (!call load s))))) "4+5 = 9")
 (!let t ("name": "lua" "version": "5.1"))
@@ -275,6 +280,10 @@
                       ": invalid capture index"
                       "function match invalid capture")
 
+(!call error_contains (!lambda () (!call match "hello world" "%w)"))
+                      ": invalid pattern capture"
+                      "function match invalid capture")
+
 (!call is (!call rep "ab" 3) "ababab" "function rep")
 (!call is (!call rep "ab" 0) "")
 (!call is (!call rep "ab" -1) "")
@@ -291,4 +300,5 @@
 
 (!call is (!call upper "Test") "TEST" "function upper")
 (!call is (!call upper "TeSt") "TEST")
+(!call is (!call upper (!call rep "Test" 10000)) (!call rep "TEST" 10000))
 

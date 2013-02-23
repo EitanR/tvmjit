@@ -32,7 +32,7 @@
 (!let eq_array eq_array)
 (!let skip skip)
 
-(!call plan 59)
+(!call plan 60)
 
 (!call like (!index io "stdin") "^file %(0?[Xx]?%x+%)$" "variable stdin")
 
@@ -109,6 +109,11 @@
 
 (!for (line) ((!call lines "file.txt"))
       (!call is line "file with text" "function lines(filename)"))
+
+(!call error_contains (!lambda () (!call lines "file.no"))
+                      ": bad argument #1 to 'lines' (file.no: No such file or directory)"
+                      "function lines(no filename)")
+
 
 (!assign f (!call tmpfile))
 (!call is (!call (!index io "type") f) "file" "function tmpfile")

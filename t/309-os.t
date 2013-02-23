@@ -33,7 +33,7 @@
 (!let like like)
 (!let skip skip)
 
-(!call plan 48)
+(!call plan 51)
 
 (!let clk (!call clock))
 (!call type_ok clk "number" "function clock")
@@ -58,6 +58,11 @@
 
 (!define r (!call execute))
 (!call is r !true "function execute")
+
+(!define (r s n) ((!call execute "__IMPROBABLE__")))
+(!call is r !nil "function execute")
+(!call is s "exit")
+(!call type_ok n "number")
 
 (!define cmd (!concat exe " -e \"(!call print \\\"# hello from external tVM\\\")(!call (!index os \\\"exit\\\") 2)\""))
 (!define (r s n) ((!call execute cmd)))
