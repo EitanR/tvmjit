@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Francois Perrad.
 **
 ** Major portions taken verbatim or adapted from the LuaJIT.
-** Copyright (C) 2005-2012 Mike Pall.
+** Copyright (C) 2005-2013 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
 */

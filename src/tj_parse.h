@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Francois Perrad.
 **
 ** Major parts taken verbatim from the LuaJIT.
-** Copyright (C) 2005-2012 Mike Pall.
+** Copyright (C) 2005-2013 Mike Pall.
 */
 
 #ifndef _TJ_PARSE_H

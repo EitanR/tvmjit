@@ -4,7 +4,7 @@
 -- Copyright (C) 2013 Francois Perrad.
 --
 -- Major portions taken verbatim or adapted from the LuaJIT.
--- Copyright (C) 2005-2012 Mike Pall.
+-- Copyright (C) 2005-2013 Mike Pall.
 -- Released under the MIT license.
 ----------------------------------------------------------------------------
 --
@@ -61,7 +61,6 @@ local function ctlsub(c)
   if c == "\n" then return "\\n"
   elseif c == "\r" then return "\\r"
   elseif c == "\t" then return "\\t"
-  elseif c == "\r" then return "\\r"
   else return format("\\%03d", byte(c))
   end
 end
