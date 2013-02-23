@@ -32,7 +32,7 @@
 (!let eq_array eq_array)
 (!let skip skip)
 
-(!call plan 60)
+(!call plan 61)
 
 (!call like (!index io "stdin") "^file %(0?[Xx]?%x+%)$" "variable stdin")
 
@@ -168,6 +168,12 @@
 (!call is (!call (!index io "type") f) "file")
 (!callmeth f close)
 (!call is (!call (!index io "type") f) "closed file")
+
+(!assign f (!call open "file.txt"))
+(!for (two_char) ((!callmeth f lines 2))
+    (!call is two_char "fi" "method lines (with read option)")
+    (!break))
+(!callmeth f close)
 
 (!call error_contains (!lambda () (!callmeth f seek "end" 0))
                       ": attempt to use a closed file"
