@@ -19,11 +19,15 @@
 ))
 
 (!let todo_info (
+    147: "LuaJIT TODO. \\0"
+    149: "LuaJIT TODO. \\0"
+    151: "LuaJIT TODO. [^\\0]"
+    153: "LuaJIT TODO. [^\\0]"
 ))
 
 (!let split (!lambda (line)
                 (!define (pattern target result desc) ("" "" "" ""))
-                (!define idx 0)
+                (!define idx 1)
                 (!define c (!callmeth line sub idx idx))
                 (!while (!and (!ne c "") (!ne c "\t"))  ; pattern
                         (!if (!eq c "\"")
@@ -84,7 +88,7 @@
                 (!return pattern target result desc)))
 
 (!define test_number 0)
-(!let dirname (!callmeth (!index arg 0) sub 0 (!sub (!callmeth (!index arg 0) find "314") 1)))
+(!let dirname (!callmeth (!index arg 0) sub 1 (!sub (!callmeth (!index arg 0) find "314") 1)))
 (!loop i 0 (!sub (!len test_files) 1) 1
         (!let filename (!index test_files i))
         (!let (f msg) ((!call (!index io "open") (!concat dirname filename) "r")))
@@ -101,13 +105,16 @@
                 (!let code (!mconcat "\
                     (!let t ((!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
                     (!if (!eq (!len t) 0)\
-                         (!return \"nil\")\
-                         (!return (!call (!index table \"concat\") t \"\\t\")))"))
+                         (!return \"nil\"))\
+                    (!loop i (!sub (!len t) 1) 0 -1\
+                            (!let v (!index t i))\
+                            (!assign (!index t (!add i 1)) v))\
+                    (!return (!call (!index table \"concat\") t \"\\t\"))"))
                 (!let (compiled msg) ((!call load code)))
                 (!if (!not compiled)
                      (!call error (!mconcat "can't compile : " code "\n" msg)))
-                (!if (!eq (!callmeth result sub 0 0) "/")
-                     (!do (!let pattern (!callmeth result sub 1 (!sub (!callmeth result len) 2)))
+                (!if (!eq (!callmeth result sub 1 1) "/")
+                     (!do (!let pattern (!callmeth result sub 2 (!sub (!callmeth result len) 1)))
                           (!call error_like compiled pattern desc))
                      (!do (!define out)
                           (!call pcall (!lambda () (!assign out (!call compiled))))

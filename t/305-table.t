@@ -129,10 +129,10 @@
                       ": invalid order function for sorting"
                       "function sort (bad func)")
 
-(!call eq_array (!nil (!call unpack ())) () "function unpack")
-(!call eq_array (!nil (!call unpack (!nil "a"))) (!nil "a"))
-(!call eq_array (!nil (!call unpack (!nil "a" "b" "c"))) (!nil "a" "b" "c"))
-(!call eq_array (!nil (!call1 unpack (!nil "a" "b" "c"))) (!nil "a"))
-(!call eq_array (!nil (!call unpack (!nil "a" "b" "c" "d" "e") 2 4)) (!nil "b" "c" "d"))
-(!call eq_array (!nil (!call unpack (!nil "a" "b" "c") 2 4)) (!nil "b" "c"))
+(!call eq_array ((!call unpack ())) () "function unpack")
+(!call eq_array ((!call unpack (!nil "a"))) ("a"))
+(!call eq_array ((!call unpack (!nil "a" "b" "c"))) ("a" "b" "c"))
+(!call eq_array ((!call1 unpack (!nil "a" "b" "c"))) ("a"))
+(!call eq_array ((!call unpack (!nil "a" "b" "c" "d" "e") 2 4)) ("b" "c" "d"))
+(!call eq_array ((!call unpack (!nil "a" "b" "c") 2 4)) ("b" "c"))
 

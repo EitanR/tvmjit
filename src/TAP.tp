@@ -99,7 +99,7 @@
 (!assign (!index m "fail") (!lambda (name)
                 (!call ok !false name)))
 
-(!assign (!index m "eq_array") (!lambda (got expected name)
+(!let eq_array0 (!lambda (got expected name)
                 (!loop i 0 (!sub (!len expected) 1) 1
                         (!let v (!index expected i))
                         (!let val (!index got i))
@@ -114,6 +114,27 @@
                      (!do (!call ok !false name)
                           (!call diag (!mconcat "    " (!call tostring extra) " unexpected item(s)")))
                      (!call ok !true name))))
+
+(!let eq_array1 (!lambda (got expected name)
+                (!loop i 1 (!len1 expected) 1
+                        (!let v (!index expected i))
+                        (!let val (!index got i))
+                        (!if (!ne val v)
+                             (!do (!call ok !false name)
+                                  (!call diag (!concat "    at index: " (!call tostring i)))
+                                  (!call diag (!concat "         got: " (!call tostring val)))
+                                  (!call diag (!concat "    expected: " (!call tostring v)))
+                                  (!return))))
+                (!let extra (!sub (!len1 got) (!len1 expected)))
+                (!if (!ne extra 0)
+                     (!do (!call ok !false name)
+                          (!call diag (!mconcat "    " (!call tostring extra) " unexpected item(s)")))
+                     (!call ok !true name))))
+
+(!assign (!index m "eq_array") (!lambda (got expected name)
+                (!if (!ne (!index got 0) !nil)
+                     (!call eq_array0 got expected name)
+                     (!call eq_array1 got expected name))))
 
 (!assign (!index m "is_deeply") (!lambda (got expected name)
                 (!cond ((!ne (!call type got) "table")

@@ -29,7 +29,6 @@
 (!let contains contains)
 (!let like like)
 (!let error_contains error_contains)
-(!let eq_array eq_array)
 (!let skip skip)
 
 (!call plan 61)
