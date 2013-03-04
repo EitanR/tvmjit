@@ -1,6 +1,7 @@
 
 platform:
         - port msvcbuild.bat
+        - port xedkbuild.bat
 
 architecture:
         - fix BC_TSETM in vm_(arm|mips|ppc|ppcspe).dasc

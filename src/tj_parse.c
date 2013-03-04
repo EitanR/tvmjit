@@ -31,7 +31,7 @@
 /* tVM special. */
 #define SPDEF(_) \
   _(vararg) _(nil) _(false) _(true) \
-  _(neg) _(not) _(len) \
+  _(neg) _(not) _(len) _(len1) \
   _(add) _(sub) _(mul) _(div) _(mod) _(pow) \
   _(concat) \
   _(eq) _(lt) _(le) _(ne) _(gt) _(ge) \
@@ -964,7 +964,7 @@ static void bcemit_unop(FuncState *fs, BCOp op, ExpDesc *e)
       lua_assert(e->k == VNONRELOC);
     }
   } else {
-    lua_assert(op == BC_UNM || op == BC_LEN);
+    lua_assert(op == BC_UNM || op == BC_LEN0 || op == BC_LEN1);
     if (op == BC_UNM && !expr_hasjump(e)) {  /* Constant-fold negations. */
 #if LJ_HASFFI
       if (e->k == VKCDATA) {  /* Fold in-place since cdata is not interned. */
@@ -1930,7 +1930,9 @@ static void parse_unop (LexState *ls, unsigned sp, ExpDesc *e)
   } else if (sp == SP_neg) {
     op = BC_UNM;
   } else if (sp == SP_len) {
-    op = BC_LEN;
+    op = BC_LEN0;
+  } else if (sp == SP_len1) {
+    op = BC_LEN1;
   } else {
     lua_assert(0);
   }
@@ -2594,6 +2596,7 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 	case SP_neg:
 	case SP_not:
 	case SP_len:
+	case SP_len1:
 	  parse_unop(ls, sp, v);
 	  break;
 	case SP_add:

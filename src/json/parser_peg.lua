@@ -7,42 +7,32 @@
 --      see RFC 4627
 --
 
-local peg = peg
 local error = error
+local pairs = pairs
 local tonumber = tonumber
+local type = type
 local rawset = rawset
-local wchar = string.wchar
-local any = peg.any
-local capture = peg.capture
-local choice = peg.choice
-local empty = peg.empty
-local eos = peg.eos
-local except = peg.except
-local fold = peg.fold
-local grammar = peg.grammar
-local group = peg.group
-local literal = peg.literal
-local optional = peg.optional
-local position = peg.position
-local many = peg.many
-local matchtime = peg.matchtime
-local not_followed_by = peg.not_followed_by
-local range = peg.range
-local replace = peg.replace
-local sequence = peg.sequence
-local set = peg.set
-local some = peg.some
-local subst = peg.subst
-local table = peg.table
-local variable = peg.variable
+local wchar = tvm.wchar
+local peg = require 'lpeg'
+local C = peg.C
+local Cf = peg.Cf
+local Cg = peg.Cg
+local Cmt = peg.Cmt
+local Cp = peg.Cp
+local Cs = peg.Cs
+local Ct = peg.Ct
+local P = peg.P
+local R = peg.R
+local S = peg.S
+local V = peg.V
 
 
 local function find (patt)
-    return grammar{ choice(patt, sequence(any(), variable(0))) }
+    return P{ patt + (P(1) * V(1)) }
 end
 
 local function gsub (patt, repl)
-    return subst(many(choice(replace(patt, repl), any())))
+    return Cs(((patt / repl) + P(1))^0)
 end
 
 local special = {
@@ -56,12 +46,12 @@ local special = {
     ['t']  = "\t",
 }
 
-local xdigit = range('09', 'AF', 'af')
-local escape_xdigit = sequence(literal'\\u', capture(sequence(xdigit, xdigit, xdigit, xdigit)))
+local xdigit = R('09', 'AF', 'af')
+local escape_xdigit = P'\\u' * C(xdigit * xdigit * xdigit * xdigit)
 local gsub_escape_xdigit = gsub(escape_xdigit, function (s) return wchar(tonumber(s, 16)) end)
-local escape_special = sequence(literal'\\', capture(set'"\\/bfnrt'))
+local escape_special = P'\\' * C(S'"\\/bfnrt')
 local gsub_escape_special = gsub(escape_special, special)
-local escape_illegal = sequence(literal'\\', except(any(), set'"\\/bfnrtu'))
+local escape_illegal = P'\\' * (P(1) - S'"\\/bfnrtu')
 local find_escape_illegal = find(escape_illegal)
 
 local function unescape (str)
@@ -71,95 +61,96 @@ local function unescape (str)
     return gsub_escape_special:match(gsub_escape_xdigit:match(str))
 end
 
-local g = grammar {
+local g = P {
     'json';
-    json    = sequence(choice(variable'object',
-                              variable'array',
-                              matchtime(empty(), function ()
-                                                     error("object/array expected at top")
-                                                 end)),
-                       choice(eos(),
-                              matchtime(position(), function (s, pos)
-                                                        error("<eos> expected at " .. pos)
-                                                    end))),
-    value   = choice(variable'_false',
-                     variable'null',
-                     variable'_true',
-                     variable'object',
-                     variable'array',
-                     variable'number',
-                     variable'string',
-                     matchtime(sequence(position(),
-                                        not_followed_by(variable'end_array')),
-                               function (s, pos)
-                                   error("unexpected character at " .. pos)
-                               end)),
-    object  = fold(sequence(table(variable'begin_object'),
-                            optional(sequence(variable'member',
-                                              many(sequence(choice(variable'value_separator',
-                                                                   matchtime(sequence(position(),
-                                                                                      not_followed_by(variable'end_object')),
-                                                                             function (s, pos)
-                                                                                 error("',' expected at " .. pos)
-                                                                             end)),
-                                                            variable'member')))),
-                            variable'end_object'),
+    json    = (V'object'
+             + V'array'
+             + Cmt(P(0), function ()
+                            error("object/array expected at top")
+                         end))
+            * (P(-1)
+             + Cmt(Cp(), function (s, pos)
+                            error("<eos> expected at " .. pos)
+                         end)),
+    value   = V'_false'
+            + V'null'
+            + V'_true'
+            + V'object'
+            + V'array'
+            + V'number'
+            + V'string'
+            + Cmt(Cp() * -V'end_array', function (s, pos)
+                                            error("unexpected character at " .. pos)
+                                        end),
+    object  = Cf(Ct(V'begin_object')
+                 * (V'member'
+                  * ((V'value_separator'
+                    + Cmt(Cp() * -V'end_object', function (s, pos)
+                                                    error("',' expected at " .. pos)
+                                                 end))
+                   * V'member')^0)^-1
+                 * V'end_object',
                    function (t, k, v)
                        if t[k] then
                            error("duplicated key " .. k)
                        end
                        return rawset(t, k, v)
                    end),
-    member  = group(sequence(choice(variable'string',
-                                    matchtime(sequence(position(),
-                                                       not_followed_by(variable'end_object')),
-                                              function (s, pos)
-                                                  error("<string> expected at " .. pos)
-                                              end)),
-                             choice(variable'name_separator',
-                                    matchtime(position(), function (s, pos)
-                                                              error("':' expected at " .. pos)
-                                                          end)),
-                             variable'value')),
-    array   = table(sequence(variable'begin_array',
-                             optional(sequence(variable'value',
-                                               many(sequence(choice(variable'value_separator',
-                                                                    matchtime(sequence(position(),
-                                                                                       not_followed_by(variable'end_array')),
-                                                                              function (s, pos)
-                                                                                  error("',' expected at " .. pos)
-                                                                              end)),
-                                                             variable'value')))),
-                             variable'end_array')),
+    member  = Cg((V'string'
+                + Cmt(Cp() * -V'end_object', function (s, pos)
+                                                error("<string> expected at " .. pos)
+                                             end))
+               * (V'name_separator'
+                + Cmt(Cp(), function (s, pos)
+                                error("':' expected at " .. pos)
+                            end))
+               * V'value'),
+    array   = Ct(V'begin_array'
+               * (V'value'
+                * ((V'value_separator'
+                  + Cmt(Cp() * -V'end_array', function (s, pos)
+                                                    error("',' expected at " .. pos)
+                                              end))
+                 * V'value')^0)^-1
+               * V'end_array'),
 
-    _false  = replace(literal'false', function () return false end),
-    null    = replace(literal'null', function () return nil end),
-    _true   = replace(literal'true', function () return true end),
+    _false  = P'false' / function () return false end,
+    null    = P'null' / function () return nil end,
+    _true   = P'true' / function () return true end,
 
-    number  = replace(capture(sequence(optional(literal'-'),
-                                       variable'int',
-                                       optional(variable'frac'),
-                                       optional(variable'exp'))),
-                      tonumber),
-    int     = choice(literal'0', sequence(range'19', many(range'09'))),
-    frac    = sequence(literal'.', some(range'09')),
-    exp     = sequence(set'Ee', optional(set'-+'), some(range'09')),
+    number  = C(P'-'^-1 * V'int' * V'frac'^-1 * V'exp'^-1) / tonumber,
+    int     = P'0' + (R'19' * R'09'^0),
+    frac    = P'.' * R'09'^1,
+    exp     = S'Ee' * S'-+'^-1 * R'09'^1,
 
-    string  = sequence(literal'"', replace(many(variable'char'), unescape), literal'"'),
-    char    = choice(literal'\\\\', literal'\\"', except(any(), literal'"', range'\0\31')),
+    string  = P'"' * (V'char'^0 / unescape) * P'"',
+    char    = P'\\\\' + P'\\"' + (P(1) - P'"' - R'\0\31'),
 
-    begin_array     = sequence(variable'ws', literal'[', variable'ws'),
-    begin_object    = sequence(variable'ws', literal'{', variable'ws'),
-    end_array       = sequence(variable'ws', literal']', variable'ws'),
-    end_object      = sequence(variable'ws', literal'}', variable'ws'),
-    name_separator  = sequence(variable'ws', literal':', variable'ws'),
-    value_separator = sequence(variable'ws', literal',', variable'ws'),
-    ws              = many(set" \t\n\r"),
+    begin_array     = V'ws' * P'[' * V'ws',
+    begin_object    = V'ws' * P'{' * V'ws',
+    end_array       = V'ws' * P']' * V'ws',
+    end_object      = V'ws' * P'}' * V'ws',
+    name_separator  = V'ws' * P':' * V'ws',
+    value_separator = V'ws' * P',' * V'ws',
+    ws              = S" \t\n\r"^0,
 }
+
+local function table0 (t)
+    for k, v in pairs(t) do
+        if type(v) == 'table' then
+            t[k] = table0(v)
+        end
+    end
+    for i = 1, #t do
+        t[i-1] = t[i]
+        t[i] = nil
+    end
+    return t
+end
 
 return {
     parse = function (s)
-                return g:match(s)
+                return table0(g:match(s))
             end
 }
 

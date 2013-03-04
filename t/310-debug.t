@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!let TAP (!call dofile "TAP.tp"))
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let getinfo (!index debug "getinfo"))
 (!let gethook (!index debug "gethook"))

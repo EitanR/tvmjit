@@ -7,9 +7,8 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
-(!let peg peg)
 (!let plan plan)
 (!let error_contains error_contains)
 (!let is is)
@@ -17,7 +16,7 @@
 
 (!call plan 25)
 
-(!let u (!call (!index peg "literal") "u"))
+(!let u (!index io "stderr"))
 
 (!call error_contains (!lambda () (!return (!neg u)))
                       ": attempt to perform arithmetic on"
@@ -59,7 +58,7 @@
 
 (!call is (!eq u u) !true "!eq u u")
 
-(!let v (!call (!index peg "literal") "v"))
+(!let v (!index io "stdin"))
 (!call is (!ne u v) !true "!ne u v")
 
 (!call is (!eq u 1) !false "!eq u 1")

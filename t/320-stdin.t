@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let pcall pcall)
 (!let open (!index io "open"))
@@ -35,7 +35,7 @@
 ")
 (!callmeth f close)
 
-(!define cmd (!concat exe " -e \"(!call dofile)(!define n (!call norm 3.4 1.0))(!call print (!call twice n))\" < lib1.tp"))
+(!define cmd (!concat exe " -e \"(!call (!index tvm \\\"dofile\\\"))(!define n (!call norm 3.4 1.0))(!call print (!call twice n))\" < lib1.tp"))
 (!define f (!call popen cmd))
 (!call contains (!callmeth f read) "7.088" "function dofile (stdin)")
 (!callmeth f close)
@@ -46,7 +46,7 @@
 (!callmeth f write "(!assign foo (!lambda (x) (!return x)))")
 (!callmeth f close)
 
-(!define cmd (!concat exe " -e \"(!define f (!call loadfile))(!call print (!call tostring foo))(!call f)(!call print (!call foo \\\"ok\\\"))\" < foo.tp"))
+(!define cmd (!concat exe " -e \"(!define f (!call (!index tvm \\\"loadfile\\\")))(!call print (!call tostring foo))(!call f)(!call print (!call foo \\\"ok\\\"))\" < foo.tp"))
 (!define f (!call popen cmd))
 (!call is (!callmeth f read) "nil" "function loadfile (stdin)")
 (!call is (!callmeth f read) "ok")
@@ -55,8 +55,8 @@
 (!call unlink "foo.tp")         ; clean up
 
 (!define f (!call open "dbg.txt" "w"))
-(!callmeth f write "(!call print \"ok\")\n")
-(!callmeth f write "(!call error \"dbg\")\n")
+(!callmeth f write "print 'ok'\n")
+(!callmeth f write "error 'dbg'\n")
 (!callmeth f write "cont\n")
 (!callmeth f close)
 

@@ -8,8 +8,11 @@
 --      see https://github.com/hoelzro/lua-linenoise
 --
 
+local load = tvm.load
+local dofile = tvm.dofile
+
 arg = {}
-local compiler = require 'nqp/translator'
+local compiler = dofile 'nqp/translator.tp'
 
 local function print_version ()
     print "nqp/TvmJIT\tCopyright (C) 2013 Francois Perrad"
@@ -18,8 +21,9 @@ end
 local function handle_script (argv, script)
     local fname = argv[script]
     local arg = {}
-    for i = script+1, #argv-1 do
-        arg[#arg] = argv[i]
+    arg[0] = ''
+    for i = script+1, #argv do
+        arg[#arg+1] = argv[i]
     end
     local chunk
     if fname == '-' then
@@ -42,7 +46,7 @@ local function dotty ()
     l.historyload(history)
     local line = l.linenoise(prompt)
     while line do
-        if #line > 0 then
+        if line ~= '' then
             local r, msg = pcall(function ()
                         local code = compiler(line, name)
                         assert(load(code, name))()
@@ -58,9 +62,9 @@ local function dotty ()
 end
 
 local argv = {...}
-local script = argv[0]
+local script = argv[1]
 if script then
-    handle_script(argv, 0)
+    handle_script(argv, 1)
 else
     print_version()
     dotty()

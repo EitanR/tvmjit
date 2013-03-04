@@ -7,9 +7,9 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
-(!let load load)
+(!let load (!index tvm "load"))
 (!let tconcat (!index table "concat"))
 (!let plan plan)
 (!let is is)
@@ -85,7 +85,7 @@
                 (!assign (!index t (!len t)) "end")
                 (!return t)))
 
-(!define a ("a" "b" "c"))
+(!define a (!nil "a" "b" "c"))
 (!call is (!call tconcat a ",") "a,b,c" "call by ref")
 (!define b (!call f a))
 (!call is (!call tconcat b ",") "a,b,c,end")

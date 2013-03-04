@@ -4,13 +4,13 @@
 ;   Copyright (C) 2013 Francois Perrad.
 ;
 
-(!call require "TAP")
+(!call (!index tvm "dofile") "TAP.tp")
 
-(!let dump (!call require "dump.tree"))
+(!let dump (!call (!index tvm "dofile") "dump/tree.tp"))
 
 (!let assert assert)
 (!let tostring tostring)
-(!let load load)
+(!let load (!index tvm "load"))
 (!let plan plan)
 (!let diag diag)
 (!let is is)

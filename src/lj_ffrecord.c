@@ -70,7 +70,6 @@ static int32_t argv2int(jit_State *J, TValue *o)
   return tvisint(o) ? intV(o) : lj_num2int(numV(o));
 }
 
-#if 0
 /* Get runtime value of string argument. */
 static GCstr *argv2str(jit_State *J, TValue *o)
 {
@@ -88,7 +87,6 @@ static GCstr *argv2str(jit_State *J, TValue *o)
     return s;
   }
 }
-#endif
 
 /* Return number of results wanted by caller. */
 static ptrdiff_t results_wanted(jit_State *J)
@@ -222,7 +220,7 @@ static void LJ_FASTCALL recff_rawlen(jit_State *J, RecordFFData *rd)
   if (tref_isstr(tr))
     J->base[0] = emitir(IRTI(IR_FLOAD), tr, IRFL_STR_LEN);
   else if (tref_istab(tr))
-    J->base[0] = lj_ir_call(J, IRCALL_lj_tab_len, tr);
+    J->base[0] = lj_ir_call(J, IRCALL_lj_tab_len1, tr);
   /* else: Interpreter will throw. */
   UNUSED(rd);
 }
@@ -349,7 +347,6 @@ static void LJ_FASTCALL recff_tostring(jit_State *J, RecordFFData *rd)
   }
 }
 
-#if 0
 static void LJ_FASTCALL recff_ipairs_aux(jit_State *J, RecordFFData *rd)
 {
   RecordIndex ix;
@@ -379,7 +376,6 @@ static void LJ_FASTCALL recff_ipairs(jit_State *J, RecordFFData *rd)
     }  /* else: Interpreter will throw. */
   }
 }
-#endif
 
 static void LJ_FASTCALL recff_pcall(jit_State *J, RecordFFData *rd)
 {
@@ -640,7 +636,6 @@ static void LJ_FASTCALL recff_string_len(jit_State *J, RecordFFData *rd)
   UNUSED(rd);
 }
 
-#if 0
 /* Handle string.byte (rd->data = 0) and string.sub (rd->data = 1). */
 static void LJ_FASTCALL recff_string_range(jit_State *J, RecordFFData *rd)
 {
@@ -739,19 +734,16 @@ static void LJ_FASTCALL recff_string_range(jit_State *J, RecordFFData *rd)
     }
   }
 }
-#endif
 
 /* -- Table library fast functions ---------------------------------------- */
 
-#if 0
 static void LJ_FASTCALL recff_table_getn(jit_State *J, RecordFFData *rd)
 {
   if (tref_istab(J->base[0]))
-    J->base[0] = lj_ir_call(J, IRCALL_lj_tab_len, J->base[0]);
+    J->base[0] = lj_ir_call(J, IRCALL_lj_tab_len1, J->base[0]);
   /* else: Interpreter will throw. */
   UNUSED(rd);
 }
-#endif
 
 static void LJ_FASTCALL recff_table_remove(jit_State *J, RecordFFData *rd)
 {
@@ -759,9 +751,9 @@ static void LJ_FASTCALL recff_table_remove(jit_State *J, RecordFFData *rd)
   rd->nres = 0;
   if (tref_istab(tab)) {
     if (!J->base[1] || tref_isnil(J->base[1])) {  /* Simple pop: t[#t] = nil */
-      TRef trlen = lj_ir_call(J, IRCALL_lj_tab_len, tab);
+      TRef trlen = lj_ir_call(J, IRCALL_lj_tab_len1, tab);
       GCtab *t = tabV(&rd->argv[0]);
-      MSize len = lj_tab_len(t);
+      MSize len = lj_tab_len1(t);
       emitir(IRTGI(len ? IR_NE : IR_EQ), trlen, lj_ir_kint(J, 0));
       if (len) {
 	RecordIndex ix;
@@ -785,7 +777,6 @@ static void LJ_FASTCALL recff_table_remove(jit_State *J, RecordFFData *rd)
   }  /* else: Interpreter will throw. */
 }
 
-#if 0
 static void LJ_FASTCALL recff_table_insert(jit_State *J, RecordFFData *rd)
 {
   RecordIndex ix;
@@ -794,7 +785,7 @@ static void LJ_FASTCALL recff_table_insert(jit_State *J, RecordFFData *rd)
   rd->nres = 0;
   if (tref_istab(ix.tab) && ix.val) {
     if (!J->base[2]) {  /* Simple push: t[#t+1] = v */
-      TRef trlen = lj_ir_call(J, IRCALL_lj_tab_len, ix.tab);
+      TRef trlen = lj_ir_call(J, IRCALL_lj_tab_len1, ix.tab);
       GCtab *t = tabV(&rd->argv[0]);
       ix.key = emitir(IRTI(IR_ADD), trlen, lj_ir_kint(J, 1));
       settabV(J->L, &ix.tabv, t);
@@ -806,7 +797,6 @@ static void LJ_FASTCALL recff_table_insert(jit_State *J, RecordFFData *rd)
     }
   }  /* else: Interpreter will throw. */
 }
-#endif
 
 /* -- I/O library fast functions ------------------------------------------ */
 

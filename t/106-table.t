@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let plan plan)
 (!let error_contains error_contains)

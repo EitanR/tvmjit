@@ -3,10 +3,10 @@
 ;   TvmJIT : <http://github.com/fperrad/tvmjit/>
 ;   Copyright (C) 2013 Francois Perrad.
 
-(!assign json (!call dofile "json/grammar.tp"))
+(!assign json (!call (!index tvm "dofile") "json/grammar.tp"))
 (!assign parse (!index json "parse"))
 
-(!call require "TAP")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!call plan 60)
 

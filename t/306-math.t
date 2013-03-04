@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call require "TAP")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let tostring tostring)
 (!let abs (!index math "abs"))

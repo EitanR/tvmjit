@@ -4,16 +4,17 @@
 --
 
 --
---      lua0 uses Lua syntax, but array and string start at 0.
 --      Note: the interactive mode requires lua-linenoise built for Lua 5.1
 --      see https://github.com/hoelzro/lua-linenoise
 --
 
-arg = {}
-local compiler = require 'lua/lunokhod'
+local dofile = tvm.dofile
+local load = tvm.load
+
+local compiler = _G._COMPILER
 
 local function print_version ()
-    print "Lua0\tCopyright (C) 2013 Francois Perrad"
+    print "Lua/TvmJIT\tCopyright (C) 2013 Francois Perrad"
 end
 
 local function dostring (chunk, name)
@@ -29,8 +30,8 @@ local function handle_luainit ()
     local LUA_INIT = "LUA0_INIT"
     local init = os.getenv(LUA_INIT)
     if not init then return end
-    if init:sub(0, 0) == '@' then
-        dofile(init:sub(1))
+    if init:sub(1, 1) == '@' then
+        dofile(init:sub(2))
     else
         dostring(init, '=' .. LUA_INIT)
     end
@@ -39,8 +40,9 @@ end
 local function handle_script (argv, script)
     local fname = argv[script]
     local arg = {}
-    for i = script+1, #argv-1 do
-        arg[#arg] = argv[i]
+    arg[0] = ''
+    for i = script+1, #argv do
+        arg[#arg+1] = argv[i]
     end
     local chunk
     if fname == '-' then
@@ -79,13 +81,13 @@ local function dotty ()
 end
 
 local function collectargs (argv, opt)
-    local i = 0
-    while i < #argv do
+    local i = 1
+    while i <= #argv do
         local arg = argv[i]
-        if arg:sub(0, 0) ~= '-' then  -- not an option?
+        if arg:sub(1, 1) ~= '-' then  -- not an option?
             return i
         end
-        local arg1 = arg:sub(1, 1)
+        local arg1 = arg:sub(2, 2)
         if arg1 == '-' then
             if #arg > 2 then return nil end
             return argv[i+1] and i+1 or 0
@@ -118,19 +120,19 @@ local function collectargs (argv, opt)
 end
 
 local function runargs(argv, n)
-    local i = 0
+    local i = 1
     while i < n do
         local arg = argv[i]
-        local arg2 = arg:sub(0, 1)
+        local arg2 = arg:sub(1, 2)
         if arg2 == '-e' then
-           local chunk = arg:sub(2)
+           local chunk = arg:sub(3)
            if chunk == '' then
                 i = i + 1
                 chunk = argv[i]
            end
            dostring(chunk, "=(command line)")
         elseif arg2 == '-l' then
-           local name = arg:sub(2)
+           local name = arg:sub(3)
            if name == '' then
                 i = i + 1
                 name = argv[i]

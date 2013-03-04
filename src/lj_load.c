@@ -1,6 +1,9 @@
 /*
 ** Load and dump code.
-** Copyright (C) 2005-2013 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2013 Francois Perrad.
+**
+** Major portions taken verbatim or adapted from the LuaJIT.
+** Copyright (C) 2005-2013 Mike Pall.
 */
 
 #include <errno.h>
@@ -12,106 +15,43 @@
 #include "lua.h"
 #include "lauxlib.h"
 
-#include "lj_obj.h"
-#include "lj_gc.h"
-#include "lj_err.h"
 #include "lj_str.h"
-#include "lj_func.h"
-#include "lj_frame.h"
-#include "lj_vm.h"
-#include "tj_lex.h"
-#include "lj_bcdump.h"
-#include "tj_parse.h"
 
 /* -- Load Lua source code and bytecode ----------------------------------- */
-
-static TValue *cpparser(lua_State *L, lua_CFunction dummy, void *ud)
-{
-  LexState *ls = (LexState *)ud;
-  GCproto *pt;
-  GCfunc *fn;
-  int bc;
-  UNUSED(dummy);
-  cframe_errfunc(L->cframe) = -1;  /* Inherit error function. */
-  bc = lj_lex_setup(L, ls);
-  if (ls->mode && !strchr(ls->mode, bc ? 'b' : 't')) {
-    setstrV(L, L->top++, lj_err_str(L, LJ_ERR_XMODE));
-    lj_err_throw(L, LUA_ERRSYNTAX);
-  }
-  pt = bc ? lj_bcread(ls) : lj_parse(ls);
-  fn = lj_func_newL_empty(L, pt, tabref(L->env));
-  /* Don't combine above/below into one statement. */
-  setfuncV(L, L->top++, fn);
-  return NULL;
-}
-
-LUA_API int lua_loadx(lua_State *L, lua_Reader reader, void *data,
-		      const char *chunkname, const char *mode)
-{
-  LexState ls;
-  int status;
-  ls.rfunc = reader;
-  ls.rdata = data;
-  ls.chunkarg = chunkname ? chunkname : "?";
-  ls.mode = mode;
-  lj_str_initbuf(&ls.sb);
-  status = lj_vm_cpcall(L, NULL, &ls, cpparser);
-  lj_lex_cleanup(L, &ls);
-  lj_gc_check(L);
-  return status;
-}
-
-LUA_API int lua_load(lua_State *L, lua_Reader reader, void *data,
-		     const char *chunkname)
-{
-  return lua_loadx(L, reader, data, chunkname, NULL);
-}
-
-typedef struct FileReaderCtx {
-  FILE *fp;
-  char buf[LUAL_BUFFERSIZE];
-} FileReaderCtx;
-
-static const char *reader_file(lua_State *L, void *ud, size_t *size)
-{
-  FileReaderCtx *ctx = (FileReaderCtx *)ud;
-  UNUSED(L);
-  if (feof(ctx->fp)) return NULL;
-  *size = fread(ctx->buf, 1, sizeof(ctx->buf), ctx->fp);
-  return *size > 0 ? ctx->buf : NULL;
-}
 
 LUALIB_API int luaL_loadfilex(lua_State *L, const char *filename,
 			      const char *mode)
 {
-  FileReaderCtx ctx;
-  int status;
   const char *chunkname;
+  const char *buf;
+  size_t size;
   if (filename) {
-    ctx.fp = fopen(filename, "rb");
-    if (ctx.fp == NULL) {
-      lua_pushfstring(L, "cannot open %s: %s", filename, strerror(errno));
+    chunkname = lua_pushfstring(L, "@%s", filename);
+    lua_getglobal(L, "io");
+    lua_getfield(L, -1, "open");
+    lua_pushstring(L, filename);
+    lua_pushstring(L, "rb");
+    lua_call(L, 2, 2); /* f, msg = io.open(filename, "rb") */
+    if (lua_isnil(L, -2)) {
+      lua_pushfstring(L, "cannot open %s", lua_tostring(L, -1));
       return LUA_ERRFILE;
     }
-    chunkname = lua_pushfstring(L, "@%s", filename);
-  } else {
-    ctx.fp = stdin;
+    lua_pop(L, 1); /* msg */
+  }
+  else {
     chunkname = "=stdin";
+    lua_getglobal(L, "io");
+    lua_getfield(L, -1, "stdin"); /* f = io.stdin */
   }
-  status = lua_loadx(L, reader_file, &ctx, chunkname, mode);
-  if (ferror(ctx.fp)) {
-    L->top -= filename ? 2 : 1;
-    lua_pushfstring(L, "cannot read %s: %s", chunkname+1, strerror(errno));
-    if (filename)
-      fclose(ctx.fp);
-    return LUA_ERRFILE;
-  }
-  if (filename) {
-    L->top--;
-    copyTV(L, L->top-1, L->top);
-    fclose(ctx.fp);
-  }
-  return status;
+  lua_getfield(L, -1, "read");
+  lua_pushvalue(L, -2);
+  lua_pushstring(L, "*a");
+  lua_call(L, 2, 1); /* buf = f.read(f, "*a") */
+  buf = lua_tolstring(L, -1, &size);
+  lua_getfield(L, -2, "close");
+  lua_pushvalue(L, -3);
+  lua_call(L, 1, 0); /* f.close(f) */
+  return luaL_loadbufferx(L, buf, size, chunkname, mode);
 }
 
 LUALIB_API int luaL_loadfile(lua_State *L, const char *filename)
@@ -119,28 +59,25 @@ LUALIB_API int luaL_loadfile(lua_State *L, const char *filename)
   return luaL_loadfilex(L, filename, NULL);
 }
 
-typedef struct StringReaderCtx {
-  const char *str;
-  size_t size;
-} StringReaderCtx;
-
-static const char *reader_string(lua_State *L, void *ud, size_t *size)
-{
-  StringReaderCtx *ctx = (StringReaderCtx *)ud;
-  UNUSED(L);
-  if (ctx->size == 0) return NULL;
-  *size = ctx->size;
-  ctx->size = 0;
-  return ctx->str;
-}
-
 LUALIB_API int luaL_loadbufferx(lua_State *L, const char *buf, size_t size,
 				const char *name, const char *mode)
 {
-  StringReaderCtx ctx;
-  ctx.str = buf;
-  ctx.size = size;
-  return lua_loadx(L, reader_string, &ctx, name, mode);
+  int bc = buf[0] == '\x1b';
+  if (mode && !strchr(mode, bc ? 'b' : 't')) {
+      lua_pushliteral(L, "attempt to load chunk with wrong mode");
+      return LUA_ERRSYNTAX;
+  }
+  if (bc)
+    return tvm_loadbufferx(L, buf, size, name, mode);
+  else {
+    lua_getglobal(L, "_COMPILER");
+    lua_assert(!lua_isnil(L, -1));
+    lua_pushlstring(L, buf, size);
+    lua_pushstring(L, name);
+    lua_call(L, 2, 1); /* buf = _G._COMPILER(buf, name) */
+    buf = lua_tolstring(L, -1, &size);
+    return tvm_loadbufferx(L, buf, size, name, NULL);
+  }
 }
 
 LUALIB_API int luaL_loadbuffer(lua_State *L, const char *buf, size_t size,
@@ -152,17 +89,5 @@ LUALIB_API int luaL_loadbuffer(lua_State *L, const char *buf, size_t size,
 LUALIB_API int luaL_loadstring(lua_State *L, const char *s)
 {
   return luaL_loadbuffer(L, s, strlen(s), s);
-}
-
-/* -- Dump bytecode ------------------------------------------------------- */
-
-LUA_API int lua_dump(lua_State *L, lua_Writer writer, void *data)
-{
-  cTValue *o = L->top-1;
-  api_check(L, L->top > L->base);
-  if (tvisfunc(o) && isluafunc(funcV(o)))
-    return lj_bcwrite(L, funcproto(funcV(o)), writer, data, 0);
-  else
-    return 1;
 }
 

@@ -1,11 +1,8 @@
 ----------------------------------------------------------------------------
--- Verbose mode of the TvmJIT compiler.
+-- Verbose mode of the LuaJIT compiler.
 --
--- Copyright (C) 2013 Francois Perrad.
---
--- Major portions taken verbatim or adapted from the LuaJIT.
--- Copyright (C) 2005-2013 Mike Pall.
--- Released under the MIT license.
+-- Copyright (C) 2005-2013 Mike Pall. All rights reserved.
+-- Released under the MIT license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 --
 -- This module shows verbose information about the progress of the
@@ -15,12 +12,12 @@
 --
 -- Example usage:
 --
---   tvmjit -jv -e '(!loop i 1 1000 1 (!loop j 1 1000 1))'
---   tvmjit -jv=myapp.out myapp.tp
+--   luajit -jv -e "for i=1,1000 do for j=1,1000 do end end"
+--   luajit -jv=myapp.out myapp.lua
 --
 -- Default output is to stderr. To redirect the output to a file, pass a
 -- filename as an argument (use '-' for stdout) or set the environment
--- variable TVMJIT_VERBOSEFILE. The file is overwritten every time the
+-- variable LUAJIT_VERBOSEFILE. The file is overwritten every time the
 -- module is started.
 --
 -- The output from the first example should look like this:
@@ -45,7 +42,7 @@
 --
 -- Aborted traces are shown like this:
 --
--- [TRACE --- foo.tp:44 -- leaving loop in root trace at foo:tp:50]
+-- [TRACE --- foo.lua:44 -- leaving loop in root trace at foo:lua:50]
 --
 -- Don't worry -- trace aborts are quite common, even in programs which
 -- can be fully compiled. The compiler may retry several times until it
@@ -62,7 +59,7 @@
 
 -- Cache some library functions and objects.
 local jit = require("jit")
-assert(jit.version_num == 00001, "LuaJIT core/library version mismatch")
+assert(jit.version_num == 20001, "LuaJIT core/library version mismatch")
 local jutil = require("jit.util")
 local vmdef = require("jit.vmdef")
 local funcinfo, traceinfo = jutil.funcinfo, jutil.traceinfo
@@ -151,7 +148,7 @@ end
 -- Open the output file and attach dump handlers.
 local function dumpon(outfile)
   if active then dumpoff() end
-  if not outfile then outfile = os.getenv("TVMJIT_VERBOSEFILE") end
+  if not outfile then outfile = os.getenv("LUAJIT_VERBOSEFILE") end
   if outfile then
     out = outfile == "-" and stdout or assert(io.open(outfile, "w"))
   else
@@ -162,8 +159,9 @@ local function dumpon(outfile)
 end
 
 -- Public module functions.
-return {
-    on =        dumpon,
-    off =       dumpoff,
-    start =     dumpon,         -- For -j command line option.
-}
+module(...)
+
+on = dumpon
+off = dumpoff
+start = dumpon -- For -j command line option.
+

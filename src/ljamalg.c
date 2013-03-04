@@ -49,6 +49,7 @@
 #include "tj_parse.c"
 #include "lj_bcread.c"
 #include "lj_bcwrite.c"
+#include "tj_load.c"
 #include "lj_load.c"
 #include "lj_ctype.c"
 #include "lj_cdata.c"
@@ -89,6 +90,6 @@
 #include "lib_bit.c"
 #include "lib_jit.c"
 #include "lib_ffi.c"
-#include "lib_peg.c"
+#include "lib_tvm.c"
 #include "lib_init.c"
 

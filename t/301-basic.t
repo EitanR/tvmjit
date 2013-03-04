@@ -7,9 +7,8 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
-(!let peg peg)
 (!let assert assert)
 (!let collectgarbage collectgarbage)
 (!let dofile dofile)
@@ -33,9 +32,9 @@
 (!let open (!index io "open"))
 (!let unlink (!index os "remove"))
 
-(!call plan 156)
+(!call plan 140)
 
-(!call contains _VERSION "TvmJIT 0.0.1" "variable _VERSION")
+(!call contains _VERSION "Lua 5.1" "variable _VERSION")
 
 (!define (v msg) ((!call assert "text" "assert string")))
 (!call is v "text" "function assert")
@@ -70,94 +69,52 @@
                       ": bad argument #1 to 'collectgarbage' (invalid option 'unknown')"
                       "function collectgarbage (invalid)")
 
-(!define f (!call open "lib1.tp" "w"))
+(!define f (!call open "lib1.lua" "w"))
 (!callmeth f write "\
-(!assign norm (!lambda (x y)\
-                (!return (!pow (!add (!pow x 2) (!pow y 2)) 0.5))))\
+function norm (x, y)\
+    return (x^2 + y^2)^0.5\
+end\
 \
-(!assign twice (!lambda (x)\
-                (!return (!mul 2 x))))\
+function twice (x)\
+    return 2*x\
+end\
 ")
 (!callmeth f close)
-(!call dofile "lib1.tp")
+(!call dofile "lib1.lua")
 (!define n (!call norm 3.4 1.0))
 (!call contains (!call twice n) "7.088" "function dofile")
 
-(!call unlink "lib1.tp")        ; clean up
+(!call unlink "lib1.lua")        ; clean up
 
-(!call error_contains (!lambda () (!call dofile "no_file.tp"))
-                      "cannot open no_file.tp: No such file or directory"
+(!call error_contains (!lambda () (!call dofile "no_file.lua"))
+                      "cannot open no_file.lua: No such file or directory"
                       "function dofile (no file)")
 
-(!define f (!call open "foo.tp" "w"))
+(!define f (!call open "foo.lua" "w"))
 (!callmeth f write "?syntax error?")
 (!callmeth f close)
-(!call error_contains (!lambda () (!call dofile "foo.tp"))
-                      "foo.tp:"
-                      "function dofile (syntax error)")
-(!call unlink "foo.tp") ; clean up
+(!call error_contains (!lambda () (!call dofile "foo.lua"))
+                     "unexpected symbol"
+                     "function dofile (syntax error)")
+(!call unlink "foo.lua") ; clean up
 
-(!define t ( "\
-(!assign bar (!lambda (x)\
-                (!return x)))\
-"))
-(!assign i -1)
-(!let reader (!lambda ()
-                (!assign i (!add i 1))
-                (!return (!index t i))))
-(!define (f msg) ((!call load reader)))
-(!if msg
-     (!call diag msg))
-(!call type_ok f "function" "function load(reader)")
-(!call is bar !nil)
-(!call f)
-(!call is (!call bar "ok") "ok")
-(!assign bar !nil)
-
-(!define t ("\
-(!assign baz (!lambda (x)\
-                (!return x)))\
-"))
-(!assign i -2)
-(!let reader (!lambda ()
-                (!assign i (!add i 1))
-                (!return (!index t i))))
-(!define (f msg) ((!call load reader)))
-(!if msg (!call diag msg))
-(!call type_ok f "function" "function load(pathological reader)")
-(!call f)
-(!call is baz !nil)
-
-(!assign t ("?syntax error?"))
-(!assign i -1)
-(!define (f msg) ((!call load reader "errorchunk")))
-(!call is f !nil "function load(syntax error)")
-(!call contains msg "[string \"errorchunk\"]:")
-
-(!define f (!call load (!lambda () (!return !nil))))
-(!call type_ok f "function" "when reader returns nothing")
-
-(!define (f msg) ((!call load (!lambda () (!return ())))))
-(!call is f !nil "reader function must return a string")
-(!call contains msg "reader function must return a string")
-
-(!define f (!call load "(!assign bar (!lambda (x) (!return x)))"))
+(!define f (!call load "function bar (x) return x end"))
 (!call is bar !nil "function load(str)")
 (!call f)
 (!call is (!call bar "ok") "ok")
 (!assign bar !nil)
 
 (!define env ())
-(!define f (!call load "(!assign bar (!lambda (x) (!return x)))" "from string" "t" env))
+(!define f (!call load "function bar (x) return x end" "from string" "t" env))
 (!call is (!index env "bar") !nil "function load(str)")
 (!call f)
 (!call is (!call (!index env "bar") "ok") "ok")
 
-(!define (f msg) ((!call load "?syntax error?" "errorchunk")))
-(!call is f !nil "function load(syntax error)")
-(!call contains msg "[string \"errorchunk\"]:")
+; (!define (f msg) ((!call load "?syntax error?" "errorchunk")))
+; (!call is f !nil "function load(syntax error)")
+; (!call contains msg "[string \"errorchunk\"]:")
 
-(!define (f msg) ((!call load "(!call print \"ok\")" "chunk txt" "b")))
+(!define (f msg) ((!call load "print 'ok'" "chunk txt" "b")))
 (!call contains  msg "attempt to load chunk with wrong mode")
 (!call is f !nil "mode")
 
@@ -165,41 +122,45 @@
 (!call contains  msg "attempt to load chunk with wrong mode")
 (!call is f !nil "mode")
 
-(!define f (!call open "foo.tp" "w"))
-(!callmeth f write "(!assign foo (!lambda (x) (!return x)))")
+(!define f (!call open "foo.lua" "w"))
+(!callmeth f write "\
+function foo (x)\
+    return x\
+end\
+")
 (!callmeth f close)
-(!define f (!call loadfile "foo.tp"))
+(!define f (!call loadfile "foo.lua"))
 (!call is foo !nil "function loadfile")
 (!call f)
 (!call is (!call foo "ok") "ok")
 
-(!define (f msg) ((!call loadfile "foo.tp" "b")))
+(!define (f msg) ((!call loadfile "foo.lua" "b")))
 (!call contains msg "attempt to load chunk with wrong mode")
 (!call is f !nil "mode")
 
 (!define env ())
-(!define f (!call loadfile "foo.tp" "t" env))
+(!define f (!call loadfile "foo.lua" "t" env))
 (!call is (!index env "foo") !nil "function loadfile")
 (!call f)
 (!call is (!call (!index env "foo") "ok") "ok")
 
-(!call unlink "foo.tp") ; clean up
+(!call unlink "foo.lua") ; clean up
 
-(!define (f msg) ((!call loadfile "no_file.tp")))
+(!define (f msg) ((!call loadfile "no_file.lua")))
 (!call is f !nil "function loadfile (no file)")
-(!call is msg "cannot open no_file.tp: No such file or directory")
+(!call is msg "cannot open no_file.lua: No such file or directory")
 
-(!define f (!call open "foo.tp" "w"))
+(!define f (!call open "foo.lua" "w"))
 (!callmeth f write "?syntax error?")
 (!callmeth f close)
-(!define (f msg) ((!call loadfile "foo.tp")))
-(!call is f !nil "function loadfile (syntax error)")
-(!call contains msg "foo.tp:")
-(!call unlink "foo.tp") ; clean up
+; (!define (f msg) ((!call loadfile "foo.lua")))
+; (!call is f !nil "function loadfile (syntax error)")
+; (!call contains msg "unexpected symbol")
+(!call unlink "foo.lua") ; clean up
 
 (!let loadstring load)
 
-(!define f (!call loadstring "(!assign i (!add i 1))"))
+(!define f (!call loadstring "i = i + 1"))
 (!assign i 0)
 (!call f)
 (!call is i 1 "function loadstring")
@@ -208,14 +169,14 @@
 
 (!assign i 32)
 (!define i 0)
-(!define f (!call loadstring "(!assign i (!add i 1))(!return i)"))
+(!define f (!call loadstring "i = i + 1; return i"))
 (!define g (!lambda () (!assign i (!add i 1))(!return i)))
 (!call is (!call f) 33 "function loadstring")
 (!call is (!call g) 1)
 
-(!define (f msg) ((!call loadstring "?syntax error?")))
-(!call is f !nil "function loadstring (syntax error)")
-(!call contains msg "[string \"?syntax error?\"]:")
+; (!define (f msg) ((!call loadstring "?syntax error?")))
+; (!call is f !nil "function loadstring (syntax error)")
+; (!call contains msg "[string \"?syntax error?\"]:")
 
 (!define t ("a" "b" "c"))
 (!define a (!call next t !nil))
@@ -292,7 +253,7 @@
 (!call is (!call rawequal print 2) !false)
 
 (!call is (!call rawlen "text") 4 "function rawlen (string)")
-(!call is (!call rawlen ("a" "b" "c")) 3 "function rawlen (table)")
+(!call is (!call rawlen (!nil "a" "b" "c")) 3 "function rawlen (table)")
 (!call error_contains (!lambda () (!assign a (!call rawlen !true)))
                       ": bad argument #1 to 'rawlen' (table expected, got boolean)"
                       "function rawlen with bad arg")
@@ -354,7 +315,7 @@
 (!call is (!call type type) "function")
 (!call is (!call type !true) "boolean")
 (!call is (!call type !nil) "nil")
-(!call is (!call type (!call (!index peg "literal") "u")) "userdata")
+(!call is (!call type (!index io "stderr")) "userdata")
 (!call is (!call type (!call type type)) "string")
 
 (!define a !nil)

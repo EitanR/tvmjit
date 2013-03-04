@@ -17,7 +17,7 @@
 #define TVM_LDIR	"!\\tvm\\"
 #define TVM_CDIR	"!\\"
 #define TVM_PATH_DEFAULT \
-  ".\\?.tp;" LUA_LDIR"?.tp;" LUA_LDIR"?\\init.tp;"
+  ".\\?.lua;" LUA_LDIR"?.lua;" LUA_LDIR"?\\init.lua;"
 #define LUA_CPATH_DEFAULT \
   ".\\?.dll;" LUA_CDIR"?.dll;" LUA_CDIR"loadall.dll"
 #else
@@ -38,7 +38,7 @@
 #define TVM_XCPATH	LUA_ROOT "lib/tvmjit/5.1/?.so;"
 #endif
 #define TVM_PATH_DEFAULT \
-  "./?.tp;" TVM_JDIR"?.tp;" TVM_XPATH
+  "./?.lua;" TVM_JDIR"?.lua;" TVM_XPATH
 #define TVM_CPATH_DEFAULT \
   "./?.so;" TVM_XCPATH LUA_CDIR"?.so;"
 #endif

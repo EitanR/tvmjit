@@ -21,6 +21,7 @@
 #include "tvmconf.h"
 
 #include "lj_arch.h"
+#include "lunokhod.h"
 
 #if LJ_TARGET_POSIX
 #include <unistd.h>
@@ -176,13 +177,13 @@ static int getargs(lua_State *L, char **argv, int n)
 
 static int dofile(lua_State *L, const char *name)
 {
-  int status = luaL_loadfile(L, name) || docall(L, 0, 1);
+  int status = tvm_loadfile(L, name) || docall(L, 0, 1);
   return report(L, status);
 }
 
 static int dostring(lua_State *L, const char *s, const char *name)
 {
-  int status = luaL_loadbuffer(L, s, strlen(s), name) || docall(L, 0, 1);
+  int status = tvm_loadbuffer(L, s, strlen(s), name) || docall(L, 0, 1);
   return report(L, status);
 }
 
@@ -242,7 +243,7 @@ static int loadline(lua_State *L)
   if (!pushline(L, 1))
     return -1;  /* no input */
   for (;;) {  /* repeat until gets a complete line */
-    status = luaL_loadbuffer(L, lua_tostring(L, 1), lua_strlen(L, 1), "=stdin");
+    status = tvm_loadbuffer(L, lua_tostring(L, 1), lua_strlen(L, 1), "=stdin");
     if (!incomplete(L, status)) break;  /* cannot try to add lines? */
     if (!pushline(L, 0))  /* no more input? */
       return -1;
@@ -286,7 +287,7 @@ static int handle_script(lua_State *L, char **argv, int n)
   fname = argv[n];
   if (strcmp(fname, "-") == 0 && strcmp(argv[n-1], "--") != 0)
     fname = NULL;  /* stdin */
-  status = luaL_loadfile(L, fname);
+  status = tvm_loadfile(L, fname);
   lua_insert(L, -(narg+1));
   if (status == 0)
     status = docall(L, narg, 0);
@@ -529,6 +530,9 @@ static int pmain(lua_State *L)
   }
   lua_gc(L, LUA_GCSTOP, 0);  /* stop collector during initialization */
   luaL_openlibs(L);  /* open libraries */
+  s->status = tvm_loadbufferx(L, luaJIT_BC_lunokhod, luaJIT_BC_lunokhod_SIZE, "lunokhod", "b")
+           || docall(L, 0, 1);
+  if (s->status != 0) return 0;
   lua_gc(L, LUA_GCRESTART, -1);
   if (!(flags & FLAGS_NOENV)) {
     s->status = handle_luainit(L);

@@ -4,7 +4,7 @@
 ;   Copyright (C) 2013 Francois Perrad.
 ;
 
-(!call require "TAP")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let tobit (!index bit "tobit"))
 (!let tohex (!index bit "tohex"))

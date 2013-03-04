@@ -102,8 +102,12 @@ static int io_file_close(lua_State *L, IOFileUD *iof)
     lua_assert(0);
     return 0;
 #endif
+#if LJ_52
     iof->fp = NULL;
     return luaL_execresult(L, stat);
+#else
+    ok = (stat != -1);
+#endif
   } else {
     lua_assert((iof->type & IOFILE_TYPE_MASK) == IOFILE_TYPE_STDF);
     setnilV(L->top++);

@@ -84,8 +84,8 @@ FILE_SO= libtvmjit.so
 FILE_MAN= tvmjit.1
 FILE_PC= tvmjit.pc
 FILES_INC= lua.h lualib.h lauxlib.h luaconf.h lua.hpp tvmjit.h tvmconf.h
-FILES_JITLIB= bc.tp v.tp dump.tp dis_x86.tp dis_x64.tp dis_arm.tp \
-	      dis_ppc.tp dis_mips.tp dis_mipsel.tp bcsave.tp vmdef.tp
+FILES_JITLIB= bc.lua v.lua dump.lua dis_x86.lua dis_x64.lua dis_arm.lua \
+	      dis_ppc.lua dis_mips.lua dis_mipsel.lua bcsave.lua vmdef.lua
 
 ifeq (,$(findstring Windows,$(OS)))
   ifeq (Darwin,$(shell uname -s))

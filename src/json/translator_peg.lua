@@ -7,41 +7,29 @@
 --      see RFC 4627
 --
 
-local peg = peg
 local error = error
-local loadstring = load
+local loadstring = tvm.load
 local tonumber = tonumber
-local quote = string.quote
-local wchar = string.wchar
+local quote = tvm.quote
+local wchar = tvm.wchar
 local tconcat = table.concat
-local any = peg.any
-local capture = peg.capture
-local choice = peg.choice
-local empty = peg.empty
-local eos = peg.eos
-local except = peg.except
-local grammar = peg.grammar
-local literal = peg.literal
-local optional = peg.optional
-local position = peg.position
-local many = peg.many
-local matchtime = peg.matchtime
-local not_followed_by = peg.not_followed_by
-local range = peg.range
-local replace = peg.replace
-local sequence = peg.sequence
-local set = peg.set
-local some = peg.some
-local subst = peg.subst
-local variable = peg.variable
+local peg = require 'lpeg'
+local C = peg.C
+local Cmt = peg.Cmt
+local Cp = peg.Cp
+local Cs = peg.Cs
+local P = peg.P
+local R = peg.R
+local S = peg.S
+local V = peg.V
 
 
 local function find (patt)
-    return grammar{ choice(patt, sequence(any(), variable(0))) }
+    return P{ patt + (P(1) * V(1)) }
 end
 
 local function gsub (patt, repl)
-    return subst(many(choice(replace(patt, repl), any())))
+    return Cs(((patt / repl) + P(1))^0)
 end
 
 local special = {
@@ -55,12 +43,12 @@ local special = {
     ['t']  = "\t",
 }
 
-local xdigit = range('09', 'AF', 'af')
-local escape_xdigit = sequence(literal'\\u', capture(sequence(xdigit, xdigit, xdigit, xdigit)))
+local xdigit = R('09', 'AF', 'af')
+local escape_xdigit = P'\\u' * C(xdigit * xdigit * xdigit * xdigit)
 local gsub_escape_xdigit = gsub(escape_xdigit, function (s) return wchar(tonumber(s, 16)) end)
-local escape_special = sequence(literal'\\', capture(set'"\\/bfnrt'))
+local escape_special = P'\\' * C(S'"\\/bfnrt')
 local gsub_escape_special = gsub(escape_special, special)
-local escape_illegal = sequence(literal'\\', except(any(), set'"\\/bfnrtu'))
+local escape_illegal = P'\\' * (P(1) - S'"\\/bfnrtu')
 local find_escape_illegal = find(escape_illegal)
 
 local function unescape (str)
@@ -73,93 +61,82 @@ end
 
 local buffer
 
-local g = grammar {
+local g = P {
     'json';
-    json    = sequence(choice(variable'object',
-                              variable'array',
-                              matchtime(empty(), function ()
-                                                     error("object/array expected at top")
-                                                 end)),
-                       choice(eos(),
-                              matchtime(position(), function (s, pos)
-                                                        error("<eos> expected at " .. pos)
-                                                    end))),
-    value   = choice(variable'_false',
-                     variable'null',
-                     variable'_true',
-                     variable'object',
-                     variable'array',
-                     variable'number',
-                     variable'string',
-                     matchtime(sequence(position(),
-                                        not_followed_by(variable'end_array')),
-                               function (s, pos)
-                                   error("unexpected character at " .. pos)
-                               end)),
-    object  = sequence(replace(variable'begin_object', function () buffer[#buffer] = '(\n' end),
-                       optional(sequence(variable'member',
-                                         many(sequence(choice(variable'value_separator',
-                                                              matchtime(sequence(position(),
-                                                                                 not_followed_by(variable'end_object')),
-                                                                        function (s, pos)
-                                                                            error("',' expected at " .. pos)
-                                                                        end)),
-                                                       variable'member')))),
-                       replace(variable'end_object', function () buffer[#buffer] = ')' end)),
-    member  = sequence(choice(variable'string',
-                              matchtime(sequence(position(),
-                                                 not_followed_by(variable'end_object')),
-                                        function (s, pos)
-                                            error("<string> expected at " .. pos)
-                                        end)),
-                       choice(replace(variable'name_separator', function () buffer[#buffer] = ': ' end),
-                              matchtime(position(), function (s, pos)
-                                                        error("':' expected at " .. pos)
-                                                    end)),
-                       variable'value',
-                       replace(empty(), function () buffer[#buffer] = '\n' end)),
-    array   = sequence(replace(variable'begin_array', function () buffer[#buffer] = '( ' end),
-                       optional(sequence(variable'value',
-                                         many(sequence(choice(replace(variable'value_separator', function () buffer[#buffer] = ' ' end),
-                                                              matchtime(sequence(position(),
-                                                                                 not_followed_by(variable'end_array')),
-                                                                        function (s, pos)
-                                                                            error("',' expected at " .. pos)
-                                                                        end)),
-                                                       variable'value')))),
-                       replace(variable'end_array', function () buffer[#buffer] = ' )' end)),
+    json    = (V'object'
+             + V'array'
+             + Cmt(P(0), function ()
+                            error("object/array expected at top")
+                         end))
+            * (P(-1)
+             + Cmt(Cp(), function (s, pos)
+                            error("<eos> expected at " .. pos)
+                         end)),
+    value   = V'_false'
+            + V'null'
+            + V'_true'
+            + V'object'
+            + V'array'
+            + V'number'
+            + V'string'
+            + Cmt(Cp() * -V'end_array', function (s, pos)
+                                            error("unexpected character at " .. pos)
+                                        end),
+    object  = V'begin_object' / function () buffer[#buffer+1] = '(\n' end
+            * (V'member'
+             * ((V'value_separator'
+               + Cmt(Cp() * -V'end_object', function (s, pos)
+                                                error("',' expected at " .. pos)
+                                            end))
+              * V'member')^0)^-1
+            * V'end_object' / function () buffer[#buffer+1] = ')' end,
+    member  = (V'string'
+             + Cmt(Cp() * -V'end_object', function (s, pos)
+                                                error("<string> expected at " .. pos)
+                                          end))
+            * ((V'name_separator' / function () buffer[#buffer+1] = ': ' end)
+             + Cmt(Cp(), function (s, pos)
+                            error("':' expected at " .. pos)
+                         end))
+            * V'value'
+            * P(0) / function () buffer[#buffer+1] = '\n' end,
+    array   = (V'begin_array' / function () buffer[#buffer+1] = '( ' end)
+            * (V'value'
+             * (((V'value_separator' / function () buffer[#buffer+1] = ' ' end)
+               + Cmt(Cp() * -V'end_array', function (s, pos)
+                                                error("',' expected at " .. pos)
+                                           end))
+              * V'value')^0)^-1
+            * (V'end_array' / function () buffer[#buffer+1] = ' )' end),
 
-    _false  = replace(literal'false', function () buffer[#buffer] = '!false' end),
-    null    = replace(literal'null', function () buffer[#buffer] = '!nil' end),
-    _true   = replace(literal'true', function () buffer[#buffer] = '!true' end),
+    _false  = P'false' / function () buffer[#buffer+1] = '!false' end,
+    null    = P'null' / function () buffer[#buffer+1] = '!nil' end,
+    _true   = P'true' / function () buffer[#buffer+1] = '!true' end,
 
-    number  = replace(capture(sequence(optional(literal'-'),
-                                       variable'int',
-                                       optional(variable'frac'),
-                                       optional(variable'exp'))),
-                      function (s) buffer[#buffer] = s end),
-    int     = choice(literal'0', sequence(range'19', many(range'09'))),
-    frac    = sequence(literal'.', some(range'09')),
-    exp     = sequence(set'Ee', optional(set'-+'), some(range'09')),
+    number  = C(P'-'^-1 * V'int' * V'frac'^-1 * V'exp'^-1) /
+                function (s) buffer[#buffer+1] = s end,
+    int     = P'0' + (R'19' * R'09'^0),
+    frac    = P'.' * R'09'^1,
+    exp     = S'Ee' * S'-+'^-1 * R'09'^1,
 
-    string  = sequence(literal'"',
-                       replace(replace(replace(many(variable'char'), unescape), quote), function (s) buffer[#buffer] = s end),
-                       literal'"'),
-    char    = choice(literal'\\\\', literal'\\"', except(any(), literal'"', range'\0\31')),
+    string  = P'"'
+            * (((V'char'^0 / unescape) / quote) / function (s) buffer[#buffer+1] = s end)
+            * P'"',
+    char    = P'\\\\' + P'\\"' + (P(1) - P'"' - R'\0\31'),
 
-    begin_array     = sequence(variable'ws', literal'[', variable'ws'),
-    begin_object    = sequence(variable'ws', literal'{', variable'ws'),
-    end_array       = sequence(variable'ws', literal']', variable'ws'),
-    end_object      = sequence(variable'ws', literal'}', variable'ws'),
-    name_separator  = sequence(variable'ws', literal':', variable'ws'),
-    value_separator = sequence(variable'ws', literal',', variable'ws'),
-    ws              = many(set" \t\n\r"),
+    begin_array     = V'ws' * P'[' * V'ws',
+    begin_object    = V'ws' * P'{' * V'ws',
+    end_array       = V'ws' * P']' * V'ws',
+    end_object      = V'ws' * P'}' * V'ws',
+    name_separator  = V'ws' * P':' * V'ws',
+    value_separator = V'ws' * P',' * V'ws',
+    ws              = S" \t\n\r"^0,
 }
 
 local function translate (s)
     buffer = { '(!return ' }
     g:match(s)
-    buffer[#buffer] = ')'
+    buffer[#buffer+1] = ')'
     return tconcat(buffer)
 end
 

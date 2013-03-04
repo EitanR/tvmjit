@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let error error)
 (!let getmetatable getmetatable)
@@ -249,7 +249,7 @@
 (!call is a "Cplx.__call (2,0)")
 
 (!assign (!index (!index Cplx "mt") "__call") (!lambda (obj !vararg)
-                (!assign a (!mconcat "Cplx.__call " (!call tostring obj) ", " (!call tconcat (!vararg) ", ")))
+                (!assign a (!mconcat "Cplx.__call " (!call tostring obj) ", " (!call tconcat (!nil !vararg) ", ")))
                 (!return !true)))
 
 (!call is (!call c1) !true "cplx __call (with args)")
@@ -270,7 +270,7 @@
 
 (!define r ())
 (!for (k) ((!call pairs t))
-      (!assign (!index r (!len r)) k))
+      (!assign (!index r (!add (!len1 r) 1)) k))
 (!call tsort r)
 (!call is (!call tconcat r ",") "a,b,c" "__pairs" )
 

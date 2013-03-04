@@ -7,7 +7,7 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let exe (!or RUN_TVM (!index arg -1)))
 (!let execute (!index os "execute"))
@@ -41,12 +41,18 @@
 (!call contains (!callmeth f read) ": cannot open no_file.tp" "no file")
 (!callmeth f close)
 
-(!call execute (!concat exe " -b hello.tp hello.tpc"))
+(!define f (!call (!index io "open") "hello.lua" "w"))
+(!callmeth f write "\
+print [[Hello World]]\
+")
+(!callmeth f close)
+(!call execute (!concat exe " -b hello.lua hello.tpc"))
 (!define cmd (!concat exe " hello.tpc"))
 (!define f (!call (!index io "popen") cmd))
 (!call is (!callmeth f read) "Hello World" "bytecode")
 (!callmeth f close)
 
+(!call unlink "hello.lua")      ; clean up
 (!call unlink "hello.tpc")      ; clean up
 
 (!define cmd (!concat exe " < hello.tp"))

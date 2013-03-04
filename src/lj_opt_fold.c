@@ -1881,7 +1881,8 @@ LJFOLDX(lj_opt_fwd_hload)
 LJFOLD(ULOAD any)
 LJFOLDX(lj_opt_fwd_uload)
 
-LJFOLD(CALLL any IRCALL_lj_tab_len)
+LJFOLD(CALLL any IRCALL_lj_tab_len0)
+LJFOLD(CALLL any IRCALL_lj_tab_len1)
 LJFOLDX(lj_opt_fwd_tab_len)
 
 /* Upvalue refs are really loads, but there are no corresponding stores.

@@ -7,13 +7,13 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call require "TAP")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let plan plan)
 (!let ok ok)
 (!let type_ok type_ok)
 
-(!call plan 24)
+(!call plan 23)
 
 (!call ok (!index (!index package "loaded") "_G") "table package.loaded")
 (!call ok (!index (!index package "loaded") "coroutine"))
@@ -33,41 +33,54 @@
 
 (!call type_ok (!index package "loaders") "table" "table package.loaders")
 
-(!let m (!call require "TAP"))
-(!call (!index m "ok") !true "function require")
-(!call is m (!index (!index package "loaded") "TAP"))
+(!let m (!call require "lpeg"))
+(!call (!index m "locale") () "function require")
+(!call is m (!index (!index package "loaded") "lpeg"))
 
-(!let p (!call (!index package "searchpath") "TAP" (!index package "path")))
+(!let p (!call (!index package "searchpath") "lpeg" (!index package "cpath")))
 (!call type_ok p "string" "searchpath")
-(!let p (!call (!index package "searchpath") "TAP" "bad path"))
+(!let p (!call (!index package "searchpath") "lpeg" "bad path"))
 (!call is p !nil)
 
-(!let f (!call (!index io "open") "complex.tp" "w"))
+(!let f (!call (!index io "open") "complex.lua" "w"))
 (!callmeth f write "\
-(!assign complex ())\
+complex = {}\
 \
-(!assign (!index complex \"new\") (!lambda (r i)\
-                (!return (\"r\":r \"i\":i))))\
+function complex.new (r, i) return {r=r, i=i} end\
 \
-; defines a constant 'i'\
-(!assign (!index complex \"i\") (!call (!index complex \"new\") 0 1))\
+--defines a constant 'i'\
+complex.i = complex.new(0, 1)\
 \
-(!assign (!index complex \"add\") (!lambda (c1 c2)\
-                (!return (!call (!index complex \"new\") (!add (!index c1 \"r\") (!index c2 \"r\"))\
-                                                         (!add (!index c1 \"i\") (!index c2 \"i\"))))))\
+function complex.add (c1, c2)\
+    return complex.new(c1.r + c2.r, c1.i + c2.i)\
+end\
 \
-(!assign (!index complex \"sub\") (!lambda (c1 c2)\
-                (!return (!call (!index complex \"new\") (!sub (!index c1 \"r\") (!index c2 \"r\"))\
-                                                         (!sub (!index c1 \"i\") (!index c2 \"i\"))))))\
+function complex.sub (c1, c2)\
+    return complex.new(c1.r - c2.r, c1.i - c2.i)\
+end\
 \
-(!return complex)\
+function complex.mul (c1, c2)\
+    return complex.new(c1.r*c2.r - c1.i*c2.i,\
+                       c1.r*c2.i + c1.i*c2.r)\
+end\
+\
+local function inv (c)\
+    local n = c.r^2 + c.i^2\
+    return complex.new(c.r/n, -c.i/n)\
+end\
+\
+function complex.div (c1, c2)\
+    return complex.mul(c1, inv(c2))\
+end\
+\
+return complex\
 ")
 (!callmeth f close)
 (!let m (!call require "complex"))
 (!call is m complex "function require")
 (!call is (!index (!index complex "i") "r") 0)
 (!call is (!index (!index complex "i") "i") 1)
-(!call (!index os "remove") "complex.tp")      ; clean up
+(!call (!index os "remove") "complex.lua")      ; clean up
 
 (!call error_contains (!lambda () (!call require "no_module"))
                       ": module 'no_module' not found:"
@@ -81,14 +94,14 @@
 (!call assert (!eq m foo))
 (!call is (!index m "bar") 1234 "function require & package.preload")
 
-(!let f (!call (!index io "open") "bar.tp" "w"))
+(!let f (!call (!index io "open") "bar.lua" "w"))
 (!callmeth f write "\
-    (!call print \"    in bar.tp\" !vararg)\
-    (!assign a !vararg)\
+    print('    in bar.lua', ...)\
+    a = ...\
 ")
 (!callmeth f close)
 (!assign a !nil)
 (!call require "bar")
 (!call is a "bar" "function require (arg)")
-(!call (!index os "remove") "bar.tp")   ; clean up
+(!call (!index os "remove") "bar.lua")   ; clean up
 

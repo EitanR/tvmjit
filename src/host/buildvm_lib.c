@@ -294,7 +294,7 @@ void emit_lib(BuildCtx *ctx)
       ctx->mode == BUILD_recdef)
     fprintf(ctx->fp, "/* This is a generated file. DO NOT EDIT! */\n\n");
   else if (ctx->mode == BUILD_vmdef)
-    fprintf(ctx->fp, "ffnames = {\n\"Tvm\",\n\"C\",\n");
+    fprintf(ctx->fp, "ffnames = {\n[0]=\"Lua\",\n\"C\",\n");
   if (ctx->mode == BUILD_recdef)
     fprintf(ctx->fp, "static const uint16_t recff_idmap[] = {\n0,\n0x0100");
   recffid = ffid = FF_C+1;
@@ -373,7 +373,6 @@ void emit_lib(BuildCtx *ctx)
       "#ifndef FF_NUM_ASMFUNC\n#define FF_NUM_ASMFUNC %d\n#endif\n\n",
       ffasmfunc);
   } else if (ctx->mode == BUILD_vmdef) {
-    fprintf(ctx->fp, "},\n\n");
     fprintf(ctx->fp, "}\n\n");
   } else if (ctx->mode == BUILD_bcdef) {
     int i;

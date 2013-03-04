@@ -856,7 +856,7 @@ static void build_subroutines(BuildCtx *ctx)
 #if LJ_52
   |  bnez CRET1, ->vmeta_binop		// Binop call for compatibility.
   |.  nop
-  |  b ->BC_LEN_Z
+  |  b ->BC_LEN1_Z
   |.  move CARG1, MULTRES
 #else
   |  b ->vmeta_binop			// Binop call for compatibility.
@@ -1791,8 +1791,8 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc_1 table_getn
   |  li AT, LJ_TTAB
   |  bne CARG3, AT, ->fff_fallback
-  |.  load_got lj_tab_len
-  |  call_intern lj_tab_len		// (GCtab *t)
+  |.  load_got lj_tab_len1
+  |  call_intern lj_tab_len1		// (GCtab *t)
   |.  nop
   |  // Returns uint32_t (but less than 2^31).
   |  b ->fff_resi
@@ -2608,7 +2608,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |   sdc1 f0, 0(RA)
     |  ins_next2
     break;
-  case BC_LEN:
+  case BC_LEN0:
     |  // RA = dst*8, RD = src*8
     |  addu CARG2, BASE, RD
     |   addu RA, BASE, RA
@@ -2633,9 +2633,51 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |.  nop
     |3:
 #endif
-    |->BC_LEN_Z:
-    |  load_got lj_tab_len
-    |  call_intern lj_tab_len		// (GCtab *t)
+    |->BC_LEN0_Z:
+    |  load_got lj_tab_len0
+    |  call_intern lj_tab_len0		// (GCtab *t)
+    |.  nop
+    |  // Returns uint32_t (but less than 2^31).
+    |  b <1
+    |.  nop
+#if LJ_52
+    |9:
+    |  lbu TMP0, TAB:TMP2->nomm
+    |  andi TMP0, TMP0, 1<<MM_len
+    |  bnez TMP0, <3			// 'no __len' flag set: done.
+    |.  nop
+    |  b ->vmeta_len
+    |.  nop
+#endif
+    break;
+  case BC_LEN1:
+    |  // RA = dst*8, RD = src*8
+    |  addu CARG2, BASE, RD
+    |   addu RA, BASE, RA
+    |  lw TMP0, HI(CARG2)
+    |   lw CARG1, LO(CARG2)
+    |  li AT, LJ_TSTR
+    |  bne TMP0, AT, >2
+    |.  li AT, LJ_TTAB
+    |  lw CRET1, STR:CARG1->len
+    |1:
+    |  mtc1 CRET1, f0
+    |  cvt.d.w f0, f0
+    |  ins_next1
+    |  sdc1 f0, 0(RA)
+    |  ins_next2
+    |2:
+    |  bne TMP0, AT, ->vmeta_len
+    |.  nop
+#if LJ_52
+    |  lw TAB:TMP2, TAB:CARG1->metatable
+    |  bnez TAB:TMP2, >9
+    |.  nop
+    |3:
+#endif
+    |->BC_LEN1_Z:
+    |  load_got lj_tab_len1
+    |  call_intern lj_tab_len1		// (GCtab *t)
     |.  nop
     |  // Returns uint32_t (but less than 2^31).
     |  b <1

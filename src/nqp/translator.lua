@@ -11,28 +11,19 @@ local error = error
 local tonumber = tonumber
 local print = print
 local char = string.char
-local quote = string.quote
+local quote = tvm.quote
 local tconcat = table.concat
-local any = peg.any
-local backref = peg.backref
-local capture = peg.capture
-local choice = peg.choice
-local not_followed_by = peg.not_followed_by
-local eos = peg.eos()
-local except = peg.except
-local group = peg.group
+local peg = require 'lpeg'
 local locale = peg.locale()
-local literal = peg.literal
-local many = peg.many
-local matchtime = peg.matchtime
-local optional = peg.optional
-local position = peg.position()
-local range = peg.range
-local replace = peg.replace
-local sequence = peg.sequence
-local set = peg.set
-local some = peg.some
-local subst = peg.subst
+local C = peg.C
+local Cb = peg.Cb
+local Cg = peg.Cg
+local Cmt = peg.Cmt
+local Cp = peg.Cp
+local Cs = peg.Cs
+local P = peg.P
+local R = peg.R
+local S = peg.S
 
 
 local lineno
@@ -45,53 +36,53 @@ local function syntaxerror (err)
     error(err .. " at " .. lineno)
 end
 
-local bom = literal"\xEF\xBB\xBF"
-local hspace = set' \t'
-local ch_ident = range('09', 'AZ', 'az', '__')
+local bom = P"\xEF\xBB\xBF"
+local hspace = S' \t'
+local ch_ident = R('09', 'AZ', 'az', '__')
 
-local identifier = sequence(range('AZ', 'az', '__'), many(ch_ident))
-local capt_identifier = sequence(capture(identifier), position)
+local identifier = R('AZ', 'az', '__') * ch_ident^0
+local capt_identifier = C(identifier) * Cp()
 
 local ws; do
-    local pod_begin = sequence(set'\n\r', literal'=begin')
-    local pod_end = sequence(set'\n\r', literal'=end')
-    local open = sequence(pod_begin, some(hspace), group(identifier, 'name'))
-    local close = sequence(pod_end, some(hspace), capture(identifier))
-    local closeeq = matchtime(sequence(close, backref'name'), function (s, n, a, b) return a == b end)
-    local pod_comment = choice(sequence(open, many(except(any(), closeeq)), close),
-                               sequence(pod_begin, many(except(any(), pod_end)), pod_end))
-    local comment = sequence(literal'#', many(except(any(), literal'\n')))
-    ws = many(choice(set' \f\t\r\v',
-                     replace(pod_comment, inc_lineno),
-                     replace(literal'\n', inc_lineno),
-                     comment))
+    local pod_begin = S'\n\r' * P'=begin'
+    local pod_end = S'\n\r' * P'=end'
+    local open = pod_begin * hspace^1 * Cg(identifier, 'name')
+    local close = pod_end * hspace^1 C(identifier)
+    local closeeq = Cmt(close * Cb'name', function (s, n, a, b) return a == b end)
+    local pod_comment = (open * (P(1) - closeeq)^0 * close)
+                      + (pod_begin * (P(1) - pod_end)^0 * pod_end)
+    local comment = P'#' * (P(1) - P'\n')^0
+    ws = (S' \f\t\r\v'
+        + (pod_comment / inc_lineno)
+        + (P'\n' / inc_lineno)
+        + comment)^0
 end
-local capt_ws = sequence(capture(ws), position)
+local capt_ws = C(ws) * Cp()
 
 local number; do
-    local binint = sequence(some(range'01'), many(choice(literal'_', some(range'01'))))
-    local octint = sequence(some(range'07'), many(choice(literal'_', some(range'07'))))
-    local decint = sequence(some(locale.digit), many(choice(literal'_', some(locale.digit))))
-    local hexint = sequence(some(locale.xdigit), many(choice(literal'_', some(locale.xdigit))))
-    local integer = choice(sequence(literal'0', choice(sequence(literal'b', optional(literal'_'), replace(binint, function (s) return tonumber((s:gsub('_', '')), 2) end)),
-                                                       sequence(literal'o', optional(literal'_'), replace(octint, function (s) return tonumber((s:gsub('_', '')), 8) end)),
-                                                       sequence(literal'x', optional(literal'_'), replace(hexint, function (s) return tonumber((s:gsub('_', '')), 16) end)),
-                                                       sequence(literal'd', optional(literal'_'), replace(decint, function (s) return tonumber((s:gsub('_', '')), 10) end)))),
-                           replace(decint, function (s) return tonumber((s:gsub('_', ''))) end))
-    local escale = sequence(set'Ee', optional(set'+-'), decint)
-    local dec_number = choice(sequence(literal'.', decint, optional(escale)),
-                              sequence(decint, literal'.', decint, optional(escale)),
-                              sequence(decint, escale))
-    number = choice(replace(literal'NaN', function () return 0/0 end),
-                    replace(literal'Inf', function () return 1/0 end),
-                    replace(dec_number, function (s) return tonumber((s:gsub('_',''))) end),
-                    integer)
+    local binint = R'01'^1 * (P'_' + R'01'^1)^0
+    local octint = R'07'^1 * (P'_' + R'07'^1)^0
+    local decint = locale.digit^1 * (P'_' + locale.digit^1)^0
+    local hexint = locale.xdigit^1 * (P'_' + locale.xdigit^1)^0
+    local integer = (P'0' * (P'b' * P'_'^-1 * (binint / function (s) return tonumber((s:gsub('_', '')), 2) end)
+                           + P'o' * P'_'^-1 * (octint / function (s) return tonumber((s:gsub('_', '')), 8) end)
+                           + P'x' * P'_'^-1 * (hexint / function (s) return tonumber((s:gsub('_', '')), 16) end)
+                           + P'd' * P'_'^-1 * (decint / function (s) return tonumber((s:gsub('_', '')), 10) end)))
+                  + (decint / function (s) return tonumber((s:gsub('_', ''))) end)
+    local escale = S'Ee' * S'+-'^-1 * decint
+    local dec_number = (P'.' * decint * escale^-1)
+                     + (decint * P'.' * decint * escale^-1)
+                     + (decint * escale)
+    number = (P'NaN' / function () return 0/0 end)
+           + (P'Inf' / function () return 1/0 end)
+           + (dec_number / function (s) return tonumber((s:gsub('_',''))) end)
+           + integer
 end
-local capt_number = sequence(number, position)
+local capt_number = number * Cp()
 
 local tok_string; do
     local function gsub (patt, repl)
-        return subst(many(choice(replace(patt, repl), any())))
+        return Cs(((patt / repl) + P(1))^0)
     end
 
     local special = {
@@ -108,52 +99,52 @@ local tok_string; do
         ['t']  = "\t",      -- TAB
     }
 
-    local escape_special = sequence(literal'\\', capture(set"'\"\\/abefnrt"))
+    local escape_special = P'\\' * C(S"'\"\\/abefnrt")
     local gsub_escape_special = gsub(escape_special, special)
-    local escape_xdigit = sequence(literal'\\x', capture(sequence(locale.xdigit, locale.xdigit)))
+    local escape_xdigit = P'\\x' * C(locale.xdigit * locale.xdigit)
     local gsub_escape_xdigit = gsub(escape_xdigit, function (s)
-                                                       return char(tonumber(s, 16))
+                                                        return char(tonumber(s, 16))
                                                    end)
-    local escape_octal = sequence(literal'\\o', capture(sequence(range'07', optional(range'07'), optional(range'07'))))
+    local escape_octal = P'\\o' * C(R'07' * R'07'^-1 * R'07'^-1)
     local gsub_escape_octal = gsub(escape_octal, function (s)
                                                         local n = tonumber(s, 8)
                                                         if n >= 256 then
                                                             syntaxerror("octal escape too large near " .. s)
                                                         end
                                                         return char(n)
-                                                    end)
-    local escape_decimal = sequence(literal'\\c', capture(sequence(locale.digit, optional(locale.digit), optional(locale.digit))))
+                                                 end)
+    local escape_decimal = P'\\c' * C(locale.digit * locale.digit^-1 * locale.digit^-1)
     local gsub_escape_decimal = gsub(escape_decimal, function (s)
                                                         local n = tonumber(s)
                                                         if n >= 256 then
                                                             syntaxerror("decimal escape too large near " .. s)
                                                         end
                                                         return char(n)
-                                                    end)
+                                                     end)
 
     local function unescape (str)
         return gsub_escape_special:match(gsub_escape_xdigit:match(gsub_escape_octal:match(gsub_escape_decimal:match(str))))
     end
 
-    local ch_dq = choice(literal'\\\\', literal'\\"', except(any(), literal'"', range'\0\31'))
-    local double_quote_string = replace(replace(sequence(literal'"', subst(many(ch_dq)), literal'"'), unescape), quote)
+    local ch_dq = P'\\\\' + P'\\"' + (P(1) - P'"' - R'\0\31')
+    local double_quote_string = (((P'"' * Cs(ch_dq^0) * P'"') / unescape) / quote)
 
-    local ch_sq = choice(replace(literal"\\\\", "\\"), replace(literal"\\'", "'"), except(any(), literal"'", range'\0\31'))
-    local simple_quote_string = replace(sequence(literal"'", subst(many(ch_sq)), literal"'"), quote)
+    local ch_sq = (P"\\\\" / "\\") + (P"\\'" / "'") + (P(1) - P"'" - R'\0\31')
+    local simple_quote_string = ((P"'" * Cs(ch_sq^0) * P"'") / quote)
 
-    tok_string = choice(simple_quote_string, double_quote_string)
+    tok_string = simple_quote_string + double_quote_string
 end
-local capt_string = sequence(tok_string, position)
+local capt_string = tok_string * Cp()
 
 
-local tok_comma = literal','
-local capt_comma = sequence(capture(tok_comma), position)
-local tok_left_paren = literal'('
-local capt_left_paren = sequence(capture(tok_left_paren), position)
-local tok_right_paren = literal')'
-local capt_right_paren = sequence(capture(tok_right_paren), position)
-local tok_semicolon = literal';'
-local capt_semicolon = sequence(capture(tok_semicolon), position)
+local tok_comma = P','
+local capt_comma = C(tok_comma) * Cp()
+local tok_left_paren = P'('
+local capt_left_paren = C(tok_left_paren) * Cp()
+local tok_right_paren = P')'
+local capt_right_paren = C(tok_right_paren) * Cp()
+local tok_semicolon = P';'
+local capt_semicolon = C(tok_semicolon) * Cp()
 
 local statement;
 local simpleexpr;
@@ -168,8 +159,8 @@ end
 local function statlist (s, pos, buffer)
     -- statlist -> { stat `;' }
     pos = skip_ws(s, pos)
-    while not eos:match(s, pos) do
-        buffer[#buffer] = '\n'
+    while not P(-1):match(s, pos) do
+        buffer[#buffer+1] = '\n'
         pos = statement(s, pos, buffer)
         pos = skip_ws(s, pos)
         local capt, posn = capt_semicolon:match(s, pos)
@@ -188,7 +179,7 @@ local function explist (s, pos, buffer)
     pos = skip_ws(s, pos)
     local capt, posn = capt_comma:match(s, pos)
     while posn do
-        buffer[#buffer] = ' '
+        buffer[#buffer+1] = ' '
         pos = skip_ws(s, posn)
         pos = simpleexpr(s, pos, buffer)
         pos = skip_ws(s, pos)
@@ -224,38 +215,38 @@ function simpleexpr (s, pos, buffer, one)
     local capt, posn = capt_number:match(s, pos)
     if posn then
         if capt ~= capt then
-            buffer[#buffer] = '(!div 0 0)'
+            buffer[#buffer+1] = '(!div 0 0)'
         elseif capt == 1/0 then
-            buffer[#buffer] = '(!div 1 0)'
+            buffer[#buffer+1] = '(!div 1 0)'
         else
-            buffer[#buffer] = tostring(capt)
+            buffer[#buffer+1] = tostring(capt)
         end
         return posn
     end
     capt, posn = capt_string:match(s, pos)
     if posn then
-        buffer[#buffer] = capt
+        buffer[#buffer+1] = capt
         return posn
     end
-    syntaxerror "literal expected"
+    syntaxerror "P expected"
 end
 
 
 local function callstat (s, pos, buffer)
     local lineno = lineno
     pos = skip_ws(s, pos)
-    buffer[#buffer] = '(!line '
-    buffer[#buffer] = lineno
-    buffer[#buffer] = ')'
+    buffer[#buffer+1] = '(!line '
+    buffer[#buffer+1] = lineno
+    buffer[#buffer+1] = ')'
     capt, posn = capt_identifier:match(s, pos)
     if not posn then
         syntaxerror "identifier expected"
     end
-    buffer[#buffer] = '(!call '
-    buffer[#buffer] = capt
-    buffer[#buffer] = ' ('
+    buffer[#buffer+1] = '(!call '
+    buffer[#buffer+1] = capt
+    buffer[#buffer+1] = ' ('
     pos = funcargs(s, posn, buffer)
-    buffer[#buffer] = '))'
+    buffer[#buffer+1] = '))'
     return pos
 end
 
@@ -285,14 +276,14 @@ local prelude = [[
 ]]
 
 local function translate (s, fname)
-    local pos = sequence(bom, position):match(s, 0) or 0
+    local pos = (bom * Cp()):match(s, 1) or 1
     lineno = 1
     local buffer = { prelude, '(!line ', quote(fname), ' ', lineno, ')' }
     pos = statlist(s, pos, buffer)
-    if not eos:match(s, pos) then
+    if not P(-1):match(s, pos) then
         syntaxerror("<eof> expected at " .. pos)
     end
-    buffer[#buffer] = "\n; end of generation"
+    buffer[#buffer+1] = "\n; end of generation"
     return tconcat(buffer)
 end
 

@@ -827,7 +827,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  cmplwi CRET1, 0
   |  bne ->vmeta_binop			// Binop call for compatibility.
   |  mr CARG1, SAVE0
-  |  b ->BC_LEN_Z
+  |  b ->BC_LEN1_Z
 #else
   |  b ->vmeta_binop			// Binop call for compatibility.
 #endif
@@ -1722,7 +1722,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc_1 table_getn
   |  checktab CARG1
   |  checkfail ->fff_fallback
-  |  bl extern lj_tab_len		// (GCtab *t)
+  |  bl extern lj_tab_len1		// (GCtab *t)
   |  // Returns uint32_t (but less than 2^31).
   |  efdcfsi CRET1, CRET1
   |  b ->fff_restv
@@ -2296,7 +2296,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  evstddx TMP0, BASE, RA
     |  ins_next2
     break;
-  case BC_LEN:
+  case BC_LEN0:
     |  // RA = dst*8, RD = src*8
     |  evlddx CARG1, BASE, RD
     |  checkstr CARG1
@@ -2316,8 +2316,40 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  bne >9
     |3:
 #endif
-    |->BC_LEN_Z:
-    |  bl extern lj_tab_len		// (GCtab *t)
+    |->BC_LEN0_Z:
+    |  bl extern lj_tab_len0		// (GCtab *t)
+    |  // Returns uint32_t (but less than 2^31).
+    |  b <1
+#if LJ_52
+    |9:
+    |  lbz TMP0, TAB:TMP2->nomm
+    |  andi. TMP0, TMP0, 1<<MM_len
+    |  bne <3				// 'no __len' flag set: done.
+    |  b ->vmeta_len
+#endif
+    break;
+  case BC_LEN1:
+    |  // RA = dst*8, RD = src*8
+    |  evlddx CARG1, BASE, RD
+    |  checkstr CARG1
+    |  checkfail >2
+    |  lwz CRET1, STR:CARG1->len
+    |1:
+    |  ins_next1
+    |  efdcfsi TMP0, CRET1
+    |  evstddx TMP0, BASE, RA
+    |  ins_next2
+    |2:
+    |  checktab CARG1
+    |  checkfail ->vmeta_len
+#if LJ_52
+    |  lwz TAB:TMP2, TAB:CARG1->metatable
+    |  cmplwi TAB:TMP2, 0
+    |  bne >9
+    |3:
+#endif
+    |->BC_LEN1_Z:
+    |  bl extern lj_tab_len1		// (GCtab *t)
     |  // Returns uint32_t (but less than 2^31).
     |  b <1
 #if LJ_52

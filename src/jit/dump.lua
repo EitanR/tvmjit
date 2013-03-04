@@ -1,11 +1,8 @@
 ----------------------------------------------------------------------------
--- TvmJIT compiler dump module.
+-- LuaJIT compiler dump module.
 --
--- Copyright (C) 2013 Francois Perrad.
---
--- Major portions taken verbatim or adapted from the LuaJIT.
--- Copyright (C) 2005-2013 Mike Pall.
--- Released under the MIT license.
+-- Copyright (C) 2005-2013 Mike Pall. All rights reserved.
+-- Released under the MIT license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 --
 -- This module can be used to debug the JIT compiler itself. It dumps the
@@ -13,16 +10,16 @@
 --
 -- Example usage:
 --
---   tvmjit -jdump -e '(!define x 0)(!loop i 1 1e6 1 (!assign x (!add x i)))(!call print x)'
---   tvmjit -jdump=im -e '(!loop i 1 1000 1 (!loop j 1 1000 1))' | less -R
---   tvmjit -jdump=is myapp.tp | less -R
---   tvmjit -jdump=-b myapp.tp
---   tvmjit -jdump=+aH,myapp.html myapp.tp
---   tvmjit -jdump=ixT,myapp.dump myapp.tp
+--   luajit -jdump -e "local x=0; for i=1,1e6 do x=x+i end; print(x)"
+--   luajit -jdump=im -e "for i=1,1000 do for j=1,1000 do end end" | less -R
+--   luajit -jdump=is myapp.lua | less -R
+--   luajit -jdump=-b myapp.lua
+--   luajit -jdump=+aH,myapp.html myapp.lua
+--   luajit -jdump=ixT,myapp.dump myapp.lua
 --
 -- The first argument specifies the dump mode. The second argument gives
 -- the output file name. Default output is to stdout, unless the environment
--- variable TVMJIT_DUMPFILE is set. The file is overwritten every time the
+-- variable LUAJIT_DUMPFILE is set. The file is overwritten every time the
 -- module is started.
 --
 -- Different features can be turned on or off with the dump mode. If the
@@ -57,7 +54,7 @@
 
 -- Cache some library functions and objects.
 local jit = require("jit")
-assert(jit.version_num == 00001, "TvmJIT core/library version mismatch")
+assert(jit.version_num == 20001, "LuaJIT core/library version mismatch")
 local jutil = require("jit.util")
 local vmdef = require("jit.vmdef")
 local funcinfo, funcbc = jutil.funcinfo, jutil.funcbc
@@ -104,7 +101,7 @@ local function fillsymtab(tr, nexit)
   local t = symtab
   if nexitsym == 0 then
     local ircall = vmdef.ircall
-    for i=0,#ircall-1 do
+    for i=0,#ircall do
       local addr = ircalladdr(i)
       if addr ~= 0 then t[addr] = ircall[i] end
     end
@@ -156,7 +153,7 @@ end
 ------------------------------------------------------------------------------
 
 local irtype_text = {
-  "nil",
+  [0] = "nil",
   "fal",
   "tru",
   "lud",
@@ -183,7 +180,7 @@ local irtype_text = {
 }
 
 local colortype_ansi = {
-  "%s",
+  [0] = "%s",
   "%s",
   "%s",
   "\027[36m%s\027[m",
@@ -268,7 +265,7 @@ local litname = {
     t[mode] = s
     return s
   end}),
-  ["XLOAD "] = { "", "R", "V", "RV", "U", "RU", "VU", "RVU", },
+  ["XLOAD "] = { [0] = "", "R", "V", "RV", "U", "RU", "VU", "RVU", },
   ["CONV  "] = setmetatable({}, { __index = function(t, mode)
     local s = irtype[band(mode, 31)]
     s = irtype[band(shr(mode, 5), 31)].."."..s
@@ -329,8 +326,8 @@ local function formatk(tr, idx)
       if s == "[0x00000000]" then s = "NULL" end
     end
   elseif t == 21 then -- int64_t
-    s = sub(tostring(k), 0, -3)
-    if sub(s, 0, 0) ~= "-" then s = "+"..s end
+    s = sub(tostring(k), 1, -3)
+    if sub(s, 1, 1) ~= "-" then s = "+"..s end
   else
     s = tostring(k) -- For primitives.
   end
@@ -412,7 +409,7 @@ local function dumpcallargs(tr, ins)
   else
     local m, ot, op1, op2 = traceir(tr, ins)
     local oidx = 6*shr(ot, 8)
-    local op = sub(vmdef.irnames, oidx, oidx+5)
+    local op = sub(vmdef.irnames, oidx+1, oidx+6)
     if op == "CARG  " then
       dumpcallargs(tr, op1)
       if op2 < 0 then
@@ -454,7 +451,7 @@ local function dump_ir(tr, dumpsnap, dumpreg)
     end
     local m, ot, op1, op2, ridsp = traceir(tr, ins)
     local oidx, t = 6*shr(ot, 8), band(ot, 31)
-    local op = sub(irnames, oidx, oidx+5)
+    local op = sub(irnames, oidx+1, oidx+6)
     if op == "LOOP  " then
       if dumpreg then
 	out:write(format("%04d ------------ LOOP ------------\n", ins))
@@ -475,7 +472,7 @@ local function dump_ir(tr, dumpsnap, dumpreg)
 		       band(ot, 64) == 0 and " " or "+",
 		       irtype[t], op))
       local m1, m2 = band(m, 3), band(m, 3*4)
-      if sub(op, 0, 3) == "CALL" then
+      if sub(op, 1, 4) == "CALL" then
 	local ctype
 	if m2 == 1*4 then -- op2 == IRMlit
 	  out:write(format("%-10s  (", vmdef.ircall[op2]))
@@ -588,7 +585,7 @@ local function dump_record(tr, func, pc, depth, callee)
     callee = func
   end
   if pc <= 0 then
-    out:write(sub(line, 0, -2), "         ; ", fmtfunc(func), "\n")
+    out:write(sub(line, 1, -2), "         ; ", fmtfunc(func), "\n")
   else
     out:write(line)
   end
@@ -654,9 +651,9 @@ local function dumpon(opt, outfile)
 
   local m = { t=true, b=true, i=true, m=true, }
   if opt and opt ~= "" then
-    local o = sub(opt, 0, 0)
+    local o = sub(opt, 1, 1)
     if o ~= "+" and o ~= "-" then m = {} end
-    for i=0,#opt-1 do m[sub(opt, i, i)] = (o ~= "-") end
+    for i=1,#opt do m[sub(opt, i, i)] = (o ~= "-") end
   end
   dumpmode = m
 
@@ -671,7 +668,7 @@ local function dumpon(opt, outfile)
     jit.attach(dump_texit, "texit")
   end
 
-  if not outfile then outfile = os.getenv("TVMJIT_DUMPFILE") end
+  if not outfile then outfile = os.getenv("LUAJIT_DUMPFILE") end
   if outfile then
     out = outfile == "-" and stdout or assert(io.open(outfile, "w"))
   else
@@ -695,8 +692,9 @@ local function dumpon(opt, outfile)
 end
 
 -- Public module functions.
-return {
-    on =        dumpon,
-    off =       dumpoff,
-    start =     dumpon,         -- For -j command line option.
-}
+module(...)
+
+on = dumpon
+off = dumpoff
+start = dumpon -- For -j command line option.
+

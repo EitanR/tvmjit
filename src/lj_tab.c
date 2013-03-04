@@ -1,11 +1,9 @@
 /*
 ** Table handling.
-** Copyright (C) 2013 Francois Perrad.
+** Copyright (C) 2005-2013 Mike Pall. See Copyright Notice in luajit.h
 **
-** Major portions taken verbatim or adapted from the LuaJIT.
-** Copyright (C) 2005-2013 Mike Pall.
 ** Major portions taken verbatim or adapted from the Lua interpreter.
-** Copyright (C) 1994-2008 Lua.org, PUC-Rio.
+** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
 */
 
 #define lj_tab_c
@@ -578,7 +576,53 @@ int lj_tab_next(lua_State *L, GCtab *t, TValue *key)
 
 /* -- Table length calculation -------------------------------------------- */
 
-static MSize unbound_search(GCtab *t, MSize j)
+static MSize unbound_search1(GCtab *t, MSize j)
+{
+  cTValue *tv;
+  MSize i = j;  /* i is zero or a present index */
+  j++;
+  /* find `i' and `j' such that i is present and j is not */
+  while ((tv = lj_tab_getint(t, (int32_t)j)) && !tvisnil(tv)) {
+    i = j;
+    j *= 2;
+    if (j > (MSize)(INT_MAX-2)) {  /* overflow? */
+      /* table was built with bad purposes: resort to linear search */
+      i = 1;
+      while ((tv = lj_tab_getint(t, (int32_t)i)) && !tvisnil(tv)) i++;
+      return i - 1;
+    }
+  }
+  /* now do a binary search between them */
+  while (j - i > 1) {
+    MSize m = (i+j)/2;
+    cTValue *tvb = lj_tab_getint(t, (int32_t)m);
+    if (tvb && !tvisnil(tvb)) i = m; else j = m;
+  }
+  return i;
+}
+
+/*
+** Try to find a boundary in table `t'. A `boundary' is an integer index
+** such that t[i] is non-nil and t[i+1] is nil (and 0 if t[1] is nil).
+*/
+MSize LJ_FASTCALL lj_tab_len1(GCtab *t)
+{
+  MSize j = (MSize)t->asize;
+  if (j > 1 && tvisnil(arrayslot(t, j-1))) {
+    MSize i = 1;
+    while (j - i > 1) {
+      MSize m = (i+j)/2;
+      if (tvisnil(arrayslot(t, m-1))) j = m; else i = m;
+    }
+    return i-1;
+  }
+  if (j) j--;
+  if (t->hmask <= 0)
+    return j;
+  return unbound_search1(t, j);
+}
+
+static MSize unbound_search0(GCtab *t, MSize j)
 {
   cTValue *tv;
   MSize i = j;  /* i is zero or a present index */
@@ -607,7 +651,7 @@ static MSize unbound_search(GCtab *t, MSize j)
 ** Try to find a boundary in table `t'. A `boundary' is an integer index
 ** such that t[i] is non-nil and t[i+1] is nil (and 0 if t[1] is nil).
 */
-MSize LJ_FASTCALL lj_tab_len(GCtab *t)
+MSize LJ_FASTCALL lj_tab_len0(GCtab *t)
 {
   MSize j = (MSize)t->asize;
   if (j >= 1 && tvisnil(arrayslot(t, j-1))) {
@@ -620,6 +664,6 @@ MSize LJ_FASTCALL lj_tab_len(GCtab *t)
   }
   if (t->hmask <= 0)
     return j;
-  return unbound_search(t, j);
+  return unbound_search0(t, j);
 }
 

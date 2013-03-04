@@ -7,11 +7,10 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let coroutine coroutine)
 (!let next next)
-(!let tconcat (!index table "concat"))
 
 
 (!call plan 8)
@@ -102,7 +101,7 @@
 
 (!define output ())
 (!for (p) ((!call permutations ("a" "b" "c")))
-      (!assign (!index output (!len output)) (!call tconcat p " ")))
+      (!assign (!index output (!len output)) (!mconcat (!index p 0) " " (!index p 1) " " (!index p 2))))
 (!call eq_array output ("b c a" "c b a" "c a b" "a c b" "b a c" "a b c") "permutations")
 
 
@@ -124,7 +123,7 @@
 
 (!define output ())
 (!for (p) ((!call permutations ("a" "b" "c")))
-      (!assign (!index output (!len output)) (!call tconcat p " ")))
+      (!assign (!index output (!len output)) (!mconcat (!index p 0) " " (!index p 1) " " (!index p 2))))
 (!call eq_array output ("b c a" "c b a" "c a b" "a c b" "b a c" "a b c") "permutations with wrap")
 
 ;   fibo

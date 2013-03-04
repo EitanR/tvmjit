@@ -895,7 +895,7 @@ ok:
 }
 
 /* Record call to __len metamethod. */
-static TRef rec_mm_len(jit_State *J, TRef tr, TValue *tv)
+static TRef rec_mm_len0(jit_State *J, TRef tr, TValue *tv)
 {
   RecordIndex ix;
   ix.tab = tr;
@@ -914,7 +914,32 @@ static TRef rec_mm_len(jit_State *J, TRef tr, TValue *tv)
     lj_record_call(J, func, 2);
   } else {
     if (LJ_52 && tref_istab(tr))
-      return lj_ir_call(J, IRCALL_lj_tab_len, tr);
+      return lj_ir_call(J, IRCALL_lj_tab_len0, tr);
+    lj_trace_err(J, LJ_TRERR_NOMM);
+  }
+  return 0;  /* No result yet. */
+}
+
+static TRef rec_mm_len1(jit_State *J, TRef tr, TValue *tv)
+{
+  RecordIndex ix;
+  ix.tab = tr;
+  copyTV(J->L, &ix.tabv, tv);
+  if (lj_record_mm_lookup(J, &ix, MM_len)) {
+    BCReg func = rec_mm_prep(J, lj_cont_ra);
+    TRef *base = J->base + func;
+    TValue *basev = J->L->base + func;
+    base[0] = ix.mobj; copyTV(J->L, basev+0, &ix.mobjv);
+    base[1] = tr; copyTV(J->L, basev+1, tv);
+#if LJ_52
+    base[2] = tr; copyTV(J->L, basev+2, tv);
+#else
+    base[2] = TREF_NIL; setnilV(basev+2);
+#endif
+    lj_record_call(J, func, 2);
+  } else {
+    if (LJ_52 && tref_istab(tr))
+      return lj_ir_call(J, IRCALL_lj_tab_len1, tr);
     lj_trace_err(J, LJ_TRERR_NOMM);
   }
   return 0;  /* No result yet. */
@@ -1833,13 +1858,22 @@ void lj_record_ins(jit_State *J)
     rc = tref_istruecond(rc) ? TREF_FALSE : TREF_TRUE;
     break;
 
-  case BC_LEN:
+  case BC_LEN0:
     if (tref_isstr(rc))
       rc = emitir(IRTI(IR_FLOAD), rc, IRFL_STR_LEN);
     else if (!LJ_52 && tref_istab(rc))
-      rc = lj_ir_call(J, IRCALL_lj_tab_len, rc);
+      rc = lj_ir_call(J, IRCALL_lj_tab_len0, rc);
     else
-      rc = rec_mm_len(J, rc, rcv);
+      rc = rec_mm_len0(J, rc, rcv);
+    break;
+
+  case BC_LEN1:
+    if (tref_isstr(rc))
+      rc = emitir(IRTI(IR_FLOAD), rc, IRFL_STR_LEN);
+    else if (!LJ_52 && tref_istab(rc))
+      rc = lj_ir_call(J, IRCALL_lj_tab_len1, rc);
+    else
+      rc = rec_mm_len1(J, rc, rcv);
     break;
 
   /* -- Arithmetic ops ---------------------------------------------------- */

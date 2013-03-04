@@ -1,11 +1,8 @@
 ----------------------------------------------------------------------------
 -- LuaJIT x86/x64 disassembler module.
 --
--- Copyright (C) 2013 Francois Perrad.
---
--- Major portions taken verbatim or adapted from the LuaJIT.
--- Copyright (C) 2005-2013 Mike Pall.
--- Released under the MIT license.
+-- Copyright (C) 2005-2013 Mike Pall. All rights reserved.
+-- Released under the MIT license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 -- This is a helper module used by the LuaJIT machine code dumper module.
 --
@@ -35,7 +32,7 @@ local lower, rep = string.lower, string.rep
 -- Map for 1st opcode byte in 32 bit mode. Ugly? Well ... read on.
 local map_opc1_32 = {
 --0x
-"addBmr","addVmr","addBrm","addVrm","addBai","addVai","push es","pop es",
+[0]="addBmr","addVmr","addBrm","addVrm","addBai","addVai","push es","pop es",
 "orBmr","orVmr","orBrm","orVrm","orBai","orVai","push cs","opc2*",
 --1x
 "adcBmr","adcVmr","adcBrm","adcVrm","adcBai","adcVai","push ss","pop ss",
@@ -92,7 +89,7 @@ local map_opc1_32 = {
 "lock:","int1","repne:rep","rep:","hlt","cmc","testb!Bm","testv!Vm",
 "clc","stc","cli","sti","cld","std","incb!Bm","incd!Vm",
 }
-assert(#map_opc1_32 == 256)
+assert(#map_opc1_32 == 255)
 
 -- Map for 1st opcode byte in 64 bit mode (overrides only).
 local map_opc1_64 = setmetatable({
@@ -112,7 +109,7 @@ local map_opc1_64 = setmetatable({
 -- Prefix dependent MMX/SSE opcodes: (none)|rep|o16|repne, -|F3|66|F2
 local map_opc2 = {
 --0x
-"sldt!Dmp","sgdt!Ump","larVrm","lslVrm",nil,"syscall","clts","sysret",
+[0]="sldt!Dmp","sgdt!Ump","larVrm","lslVrm",nil,"syscall","clts","sysret",
 "invd","wbinvd",nil,"ud1",nil,"$prefetch!Bm","femms","3dnowMrmu",
 --1x
 "movupsXrm|movssXrm|movupdXrm|movsdXrm",
@@ -211,7 +208,7 @@ assert(map_opc2[255] == "ud")
 local map_opc3 = {
 ["38"] = { -- [66] 0f 38 xx
 --0x
-"pshufbPrm","phaddwPrm","phadddPrm","phaddswPrm",
+[0]="pshufbPrm","phaddwPrm","phadddPrm","phaddswPrm",
 "pmaddubswPrm","phsubwPrm","phsubdPrm","phsubswPrm",
 "psignbPrm","psignwPrm","psigndPrm","pmulhrswPrm",
 nil,nil,nil,nil,
@@ -270,7 +267,7 @@ local map_opcvm = {
 local map_opcfp = {
 -- D8-DF 00-BF: opcodes with a memory operand.
 -- D8
-"faddFm","fmulFm","fcomFm","fcompFm","fsubFm","fsubrFm","fdivFm","fdivrFm",
+[0]="faddFm","fmulFm","fcomFm","fcompFm","fsubFm","fsubrFm","fdivFm","fdivrFm",
 "fldFm",nil,"fstFm","fstpFm","fldenvVm","fldcwWm","fnstenvVm","fnstcwWm",
 -- DA
 "fiaddDm","fimulDm","ficomDm","ficompDm",
@@ -381,7 +378,7 @@ local function putop(ctx, text, operands)
     for i=ctx.start,pos-1 do
       hex = hex..format("%02X", byte(code, i, i))
     end
-    if #hex > hmax then hex = sub(hex, 0, hmax-1)..". "
+    if #hex > hmax then hex = sub(hex, 1, hmax)..". "
     else hex = hex..rep(" ", hmax-#hex+2) end
   end
   if operands then text = text.." "..operands end
@@ -672,7 +669,7 @@ local function dispatch(ctx, opat, patgrp)
   if opat == "" then return unknown(ctx) end
   local name, pat = match(opat, "^([a-z0-9 ]*)(.*)")
   if pat == "" and patgrp then pat = patgrp end
-  return map_act[sub(pat, 0, 0)](ctx, name, pat)
+  return map_act[sub(pat, 1, 1)](ctx, name, pat)
 end
 
 -- Get a pattern from an opcode map and dispatch to handler.
@@ -699,19 +696,19 @@ map_act = {
 
   -- Collect prefixes.
   [":"] = function(ctx, name, pat)
-    ctx[pat == ":" and name or sub(pat, 1)] = name
+    ctx[pat == ":" and name or sub(pat, 2)] = name
     if ctx.pos - ctx.start > 5 then return unknown(ctx) end -- Limit #prefixes.
   end,
 
   -- Chain to special handler specified by name.
   ["*"] = function(ctx, name, pat)
-    return map_act[name](ctx, name, sub(pat, 1))
+    return map_act[name](ctx, name, sub(pat, 2))
   end,
 
   -- Use named subtable for opcode group.
   ["!"] = function(ctx, name, pat)
     local mrm = getmrm(ctx); if not mrm then return incomplete(ctx) end
-    return dispatch(ctx, map_opcgroup[name][((mrm-(mrm%8))/8)%8+1], sub(pat, 1))
+    return dispatch(ctx, map_opcgroup[name][((mrm-(mrm%8))/8)%8+1], sub(pat, 2))
   end,
 
   -- o16,o32[,o64] variants.
@@ -828,11 +825,12 @@ local function regname64_(r)
 end
 
 -- Public module functions.
-return {
-    create =    create_,
-    create64 =  create64_,
-    disass =    disass_,
-    disass64 =  disass64_,
-    regname =   regname_,
-    regname64 = regname64_,
-}
+module(...)
+
+create = create_
+create64 = create64_
+disass = disass_
+disass64 = disass64_
+regname = regname_
+regname64 = regname64_
+

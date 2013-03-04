@@ -445,15 +445,14 @@ LJVM_BOUT= $(LJVM_S)
 LJVM_MODE= elfasm
 
 LJLIB_O= lib_base.o lib_math.o lib_bit.o lib_string.o lib_table.o \
-	 lib_io.o lib_os.o lib_package.o lib_debug.o lib_jit.o lib_ffi.o \
-	 lib_peg.o
+	 lib_io.o lib_os.o lib_package.o lib_debug.o lib_jit.o lib_ffi.o lib_tvm.o
 LJLIB_C= $(LJLIB_O:.o=.c)
 
 LJCORE_O= lj_gc.o lj_err.o lj_char.o lj_bc.o lj_obj.o \
 	  lj_str.o lj_tab.o lj_func.o lj_udata.o lj_meta.o lj_debug.o \
 	  lj_state.o lj_dispatch.o lj_vmevent.o lj_vmmath.o lj_strscan.o \
-	  lj_api.o tj_lex.o tj_parse.o lj_bcread.o lj_bcwrite.o lj_load.o \
-	  lj_ir.o lj_opt_mem.o lj_opt_fold.o lj_opt_narrow.o \
+	  lj_api.o tj_lex.o tj_parse.o lj_bcread.o lj_bcwrite.o tj_load.o \
+	  lj_load.o lj_ir.o lj_opt_mem.o lj_opt_fold.o lj_opt_narrow.o \
 	  lj_opt_dce.o lj_opt_loop.o lj_opt_split.o lj_opt_sink.o \
 	  lj_mcode.o lj_snap.o lj_record.o lj_crecord.o lj_ffrecord.o \
 	  lj_asm.o lj_trace.o lj_gdbjit.o \
@@ -468,15 +467,12 @@ LJVMCORE_DYNO= $(LJVMCORE_O:.o=_dyn.o)
 LIB_VMDEF= jit/vmdef.lua
 LIB_VMDEFP= $(LIB_VMDEF)
 
-LIB_JIT= jit/vmdef.tp jit/bc.tp jit/bcsave.tp jit/dump.tp jit/v.tp \
-         jit/dis_arm.tp jit/dis_mips.tp jit/dis_mipsel.tp jit/dis_ppc.tp jit/dis_x64.tp jit/dis_x86.tp
-
 TVMJIT_O= tvmjit.o
 TVMJIT_A= libtvmjit.a
 TVMJIT_SO= libtvmjit.so
 TVMJIT_T= tvmjit
 
-ALL_T= $(TVMJIT_T) $(TVMJIT_A) $(TVMJIT_SO) $(HOST_T) $(LIB_JIT)
+ALL_T= $(TVMJIT_T) $(TVMJIT_A) $(TVMJIT_SO) $(HOST_T)
 ALL_HDRGEN= lj_bcdef.h lj_ffdef.h lj_libdef.h lj_recdef.h lj_folddef.h \
 	    host/buildvm_arch.h
 ALL_GEN= $(LJVM_S) $(ALL_HDRGEN) $(LIB_VMDEFP)
@@ -565,7 +561,7 @@ E= @echo
 # Make targets.
 ##############################################################################
 
-default all:	$(TARGET_T) $(LIB_JIT) lua/lua0.tp nqp/translator.tp nqp/nqp.tp
+default all:	$(TARGET_T) lua/lua.tp nqp/translator.tp nqp/nqp.tp
 
 amalg:
 	@grep "^[+|]" ljamalg.c
@@ -686,13 +682,17 @@ $(TVMJIT_T): $(TARGET_O) $(TVMJIT_O) $(TARGET_DEP)
 
 RUN_TVMJIT := ./$(TVMJIT_T)
 
+lua/lunokhod.h: lua/lunokhod.lua
+	$(E) "GEN     $@"
+	$(Q)$(RUN_TVMJIT) -b lua/lunokhod.lua lunokhod.h
+
 lua/lunokhod.tp: lua/lunokhod.lua
 	$(E) "GEN     $@"
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp lua/lunokhod.lua > lua/lunokhod.j
 	$(Q)cp lua/lunokhod.j lua/lunokhod.tp
 	$(Q)rm lua/lunokhod.j
 
-lua/lua0.tp: lua/lua0.lua lua/lunokhod.tp
+lua/lua.tp: lua/lua.lua lua/lunokhod.tp
 	$(E) "GEN     $@"
 	$(Q)echo "#!/usr/local/bin/tvmjit" > $@
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
@@ -708,50 +708,6 @@ nqp/nqp.tp: nqp/nqp.lua lua/lunokhod.tp
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
 	$(Q)chmod +x $@
 
-jit/vmdef.tp: jit/vmdef.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/bc.tp: jit/bc.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/bcsave.tp: jit/bcsave.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dump.tp: jit/dump.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/v.tp: jit/v.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_arm.tp: jit/dis_arm.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_mips.tp: jit/dis_mips.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_mipsel.tp: jit/dis_mipsel.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_ppc.tp: jit/dis_ppc.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_x64.tp: jit/dis_x64.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
-jit/dis_x86.tp: jit/dis_x86.lua lua/lunokhod.tp
-	$(E) "GEN     $@"
-	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
-
 ##############################################################################
 # Test targets.
 ##############################################################################
@@ -766,9 +722,6 @@ test:
 
 test-dump:
 	prove --exec="$(RUN_TVMJIT)" ../t/dump/*.t
-
-test-codegen:
-	prove --exec="$(RUN_TVMJIT)" ../t/CodeGen/*.t
 
 json/parser_recdescent.tp: json/parser_recdescent.lua lua/lunokhod.tp
 	$(E) "GEN     $@"
@@ -807,8 +760,8 @@ test-json: json/parser_recdescent.tp \
 test-nqp:
 	prove --exec="$(RUN_TVMJIT) nqp/nqp.tp" ../t/nqp/*.t
 
-fulltest: test test-codegen test-dump test-json test-nqp
+fulltest: test test-dump test-json test-nqp
 
-.PHONY: sanity test test-dump test-codegen test-json fulltest
+.PHONY: sanity test test-dump test-json fulltest
 
 ##############################################################################

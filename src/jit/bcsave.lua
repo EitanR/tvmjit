@@ -1,11 +1,8 @@
 ----------------------------------------------------------------------------
--- TvmJIT module to save/list bytecode.
+-- LuaJIT module to save/list bytecode.
 --
--- Copyright (C) 2013 Francois Perrad.
---
--- Major portions taken verbatim or adapted from the LuaJIT.
--- Copyright (C) 2005-2013 Mike Pall.
--- Released under the MIT license.
+-- Copyright (C) 2005-2013 Mike Pall. All rights reserved.
+-- Released under the MIT license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 --
 -- This module saves or lists the bytecode for an input file.
@@ -14,17 +11,17 @@
 ------------------------------------------------------------------------------
 
 local jit = require("jit")
-assert(jit.version_num == 00001, "TvmJIT core/library version mismatch")
+assert(jit.version_num == 20001, "LuaJIT core/library version mismatch")
 local bit = require("bit")
 
--- Symbol name prefix for TvmJIT bytecode.
+-- Symbol name prefix for LuaJIT bytecode.
 local LJBC_PREFIX = "luaJIT_BC_"
 
 ------------------------------------------------------------------------------
 
 local function usage()
   io.stderr:write[[
-Save TvmJIT bytecode: tvmjit -b[options] input output
+Save LuaJIT bytecode: luajit -b[options] input output
   -l        Only list bytecode.
   -s        Strip debug info (default).
   -g        Keep debug info.
@@ -43,7 +40,7 @@ end
 
 local function check(ok, ...)
   if ok then return ok, ... end
-  io.stderr:write("tvmjit: ", ...)
+  io.stderr:write("luajit: ", ...)
   io.stderr:write("\n")
   os.exit(1)
 end
@@ -137,17 +134,17 @@ static const char %s%s[] = {
 ]], LJBC_PREFIX, ctx.modname, #s, LJBC_PREFIX, ctx.modname))
   end
   local t, n, m = {}, 0, 0
-  for i=0,#s-1 do
+  for i=1,#s do
     local b = tostring(string.byte(s, i))
     m = m + #b + 1
     if m > 78 then
-      fp:write(table.concat(t, ",", 0, n-1), ",\n")
+      fp:write(table.concat(t, ",", 1, n), ",\n")
       n, m = 0, #b + 1
     end
     n = n + 1
     t[n] = b
   end
-  bcsave_tail(fp, output, table.concat(t, ",", 0, n-1).."\n};\n")
+  bcsave_tail(fp, output, table.concat(t, ",", 1, n).."\n};\n")
 end
 
 local function bcsave_elfobj(ctx, output, s, ffi)
@@ -256,7 +253,7 @@ typedef struct {
   for i,name in ipairs{
       ".symtab", ".shstrtab", ".strtab", ".rodata", ".note.GNU-stack",
     } do
-    local sect = o.sect[i+1]
+    local sect = o.sect[i]
     sect.align = fofs(1)
     sect.name = f32(ofs)
     ffi.copy(o.space+ofs, name)
@@ -603,18 +600,18 @@ end
 
 local function docmd(...)
   local arg = {...}
-  local n = 0
+  local n = 1
   local list = false
   local ctx = {
     strip = true, arch = jit.arch, os = string.lower(jit.os),
     type = false, modname = false,
   }
-  while n < #arg do
+  while n <= #arg do
     local a = arg[n]
-    if type(a) == "string" and string.sub(a, 0, 0) == "-" and a ~= "-" then
+    if type(a) == "string" and string.sub(a, 1, 1) == "-" and a ~= "-" then
       table.remove(arg, n)
       if a == "--" then break end
-      for m=1,#a-1 do
+      for m=2,#a do
 	local opt = string.sub(a, m, m)
 	if opt == "l" then
 	  list = true
@@ -623,10 +620,10 @@ local function docmd(...)
 	elseif opt == "g" then
 	  ctx.strip = false
 	else
-	  if arg[n] == nil or m ~= #a-1 then usage() end
+	  if arg[n] == nil or m ~= #a then usage() end
 	  if opt == "e" then
-	    if n ~= 0 then usage() end
-	    arg[0] = check(load(arg[0]))
+	    if n ~= 1 then usage() end
+	    arg[1] = check(loadstring(arg[1]))
 	  elseif opt == "n" then
 	    ctx.modname = checkmodname(table.remove(arg, n))
 	  elseif opt == "t" then
@@ -646,16 +643,17 @@ local function docmd(...)
   end
   if list then
     if #arg == 0 or #arg > 2 then usage() end
-    bclist(arg[0], arg[1] or "-")
+    bclist(arg[1], arg[2] or "-")
   else
     if #arg ~= 2 then usage() end
-    bcsave(ctx, arg[0], arg[1])
+    bcsave(ctx, arg[1], arg[2])
   end
 end
 
 ------------------------------------------------------------------------------
 
 -- Public module functions.
-return {
-    start =     docmd, -- Process -b command line option.
-}
+module(...)
+
+start = docmd -- Process -b command line option.
+

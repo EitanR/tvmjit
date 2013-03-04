@@ -7,25 +7,23 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
 
 (!let byte (!index string "byte"))
 (!let char (!index string "char"))
 (!let dump (!index string "dump"))
-(!let escape (!index string "escape"))
 (!let find (!index string "find"))
 (!let format (!index string "format"))
 (!let gmatch (!index string "gmatch"))
 (!let gsub (!index string "gsub"))
-(!let quote (!index string "quote"))
 (!let len (!index string "len"))
+(!let load (!index tvm "load"))
 (!let lower (!index string "lower"))
 (!let match (!index string "match"))
 (!let rep (!index string "rep"))
 (!let reverse (!index string "reverse"))
 (!let upper (!index string "upper"))
 (!let sub (!index string "sub"))
-(!let wchar (!index string "wchar"))
 (!let getmetatable getmetatable)
 
 (!let plan plan)
@@ -34,20 +32,20 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 124)
+(!call plan 114)
 
 (!call is (!call byte "ABC") 65 "function byte")
-(!call is (!call byte "ABC" 0) 65)
-(!call is (!call byte "ABC" 1) 66)
+(!call is (!call byte "ABC" 2) 66)
 (!call is (!call byte "ABC" -1) 67)
-(!call is (!call byte "ABC" 3) !nil)
-(!call eq_array ((!call byte "ABC" 0 2)) (65 66 67))
-(!call eq_array ((!call byte "ABC" 0 3)) (65 66 67))
+(!call is (!call byte "ABC" 4) !nil)
+(!call is (!call byte "ABC" 0) !nil)
+(!call eq_array ((!call byte "ABC" 1 3)) (65 66 67))
+(!call eq_array ((!call byte "ABC" 1 4)) (65 66 67))
 
 (!call type_ok (!call getmetatable "ABC") "table" "literal string has metatable")
 
 (!let s "ABC")
-(!call is (!callmeth s byte 1) 66 "method s:byte")
+(!call is (!callmeth s byte 2) 66 "method s:byte")
 
 (!call is (!call char 65 66 67) "ABC" "function char")
 (!call is (!call char) "")
@@ -60,20 +58,6 @@
                       ": bad argument #2 to 'char' (invalid value)"
                       "function char (invalid)")
 
-(!call is (!call wchar 65 66 67) "ABC" "function char")
-(!call is (!call wchar) "")
-
-(!call is (!call wchar 0xe7) "ç")
-(!call is (!call wchar 0x20ac) "€")
-
-(!call error_contains (!lambda () (!call wchar 0 "bad"))
-                      ": bad argument #2 to 'wchar' (number expected, got string)"
-                      "function wchar with bad arg")
-
-(!call error_contains (!lambda () (!call wchar 0 999999))
-                      ": bad argument #2 to 'wchar' (invalid value)"
-                      "function wchar (invalid)")
-
 (!let d (!call dump plan))
 (!call type_ok d "string" "function dump")
 
@@ -82,23 +66,23 @@
                      "function dump (C function)")
 
 (!let s "hello world")
-(!call eq_array ((!call find s "hello")) (0 4) "function find (mode plain)")
-(!call eq_array ((!call find s "hello" 0 !true)) (0 4))
-(!call eq_array ((!call find s "hello" 0)) (0 4))
-(!call is (!call sub s 0 4) "hello")
-(!call eq_array ((!call find s "world")) (6 10))
-(!call eq_array ((!call find s "l")) (2 2))
+(!call eq_array ((!call find s "hello")) (1 5) "function find (mode plain)")
+(!call eq_array ((!call find s "hello" 1 !true)) (1 5))
+(!call eq_array ((!call find s "hello" 1)) (1 5))
+(!call is (!call sub s 1 5) "hello")
+(!call eq_array ((!call find s "world")) (7 11))
+(!call eq_array ((!call find s "l")) (3 3))
 (!call is (!call find s "lll") !nil)
 (!call is (!call find s "hello" 2 !true) !nil)
-(!call eq_array ((!call find s "world" 2 !true)) (6 10))
+(!call eq_array ((!call find s "world" 2 !true)) (7 11))
 (!call is (!call find s "hello" 20) !nil)
 
 (!let s "hello world")
-(!call eq_array ((!call find s "^h.ll.")) (0 4) "function find (with regex & captures)")
-(!call eq_array ((!call find s "w.rld" 1)) (6 10))
+(!call eq_array ((!call find s "^h.ll.")) (1 5) "function find (with regex & captures)")
+(!call eq_array ((!call find s "w.rld" 2)) (7 11))
 (!call is (!call find s "W.rld") !nil)
-(!call eq_array ((!call find s "^(h.ll.)")) (0 4 "hello"))
-(!call eq_array ((!call find s "^(h.)l(l.)")) (0 4 "he" "lo"))
+(!call eq_array ((!call find s "^(h.ll.)")) (1 5 "hello"))
+(!call eq_array ((!call find s "^(h.)l(l.)")) (1 5 "he" "lo"))
 (!let s "Deadline is 30/05/1999, firm")
 (!let date "%d%d/%d%d/%d%d%d%d")
 (!call is (!call sub s (!call find s date)) "30/05/1999")
@@ -118,7 +102,7 @@
 
 (!call is (!call format "%q" "a string with \"quotes\" and \n new line") "\"a string with \\\"quotes\\\" and \\\n new line\"" "function format %q")
 
-(!call is (!call format "%q" "a string with \b and \b2") "\"a string with \\x08 and \\x082\"" "function format %q")
+(!call is (!call format "%q" "a string with \b and \b2") "\"a string with \\8 and \\0082\"" "function format %q")
 
 (!call is (!call format "%s %s" 1 2 3) "1 2" "function format (too many arg)")
 
@@ -151,36 +135,27 @@
                       ": invalid format (width or precision too long)"
                       "function format (invalid format)")
 
-(!call is (!call escape "a(b:c)d e") "a\\(b\\:c\\)d\\ e")
-
-(!call is (!call quote "a string with \"quotes\" and \n new line") "\"a string with \\\"quotes\\\" and \\\
- new line\"" "function quote")
-
-(!call is (!call quote "a string with \b and \b2") "\"a string with \\x08 and \\x082\"")
-
-(!call is (!call quote "a string with \x0c") "\"a string with \\x0C\"")
-
 (!let s "hello")
 (!let output ())
 (!for (c) ((!call gmatch s ".."))
     (!call (!index table "insert") output c))
-(!call eq_array output ("he" "ll") "function gmatch")
+(!call eq_array output (!nil "he" "ll") "function gmatch")
 (!let output ())
 (!for (c1 c2) ((!call gmatch s "(.)(.)"))
     (!call (!index table "insert") output c1)
     (!call (!index table "insert") output c2))
-(!call eq_array output ("h" "e" "l" "l"))
+(!call eq_array output (!nil "h" "e" "l" "l"))
 (!let s "hello world from Lua")
 (!let output ())
 (!for (w) ((!call gmatch s "%a+"))
     (!call (!index table "insert") output w))
-(!call eq_array output  ("hello" "world" "from" "Lua"))
+(!call eq_array output  (!nil "hello" "world" "from" "Lua"))
 (!let s "from=world, to=Lua")
 (!let output ())
 (!for (k v) ((!call gmatch s "(%w+)=(%w+)"))
     (!call (!index table "insert") output k)
     (!call (!index table "insert") output v))
-(!call eq_array output ("from" "world" "to" "Lua"))
+(!call eq_array output (!nil "from" "world" "to" "Lua"))
 
 (!call is (!call gsub "hello world" "(%w+)" "%1 %1") "hello hello world world" "function gsub")
 (!call is (!call gsub "hello world" "%w+" "%0 %0" 1) "hello hello world")
@@ -228,7 +203,7 @@
 (!assign expand (!lambda (s)
                 (!return (!call gsub s "$(%w+)" (!lambda (n)
                                           (!return (!call tostring (!call rawget _G n)) 1))))))
-(!call is (!call expand "print = $print; a = $a") "print = function: builtin#25; a = nil")
+(!call is (!call expand "print = $print; a = $a") "print = function: builtin#30; a = nil")
 
 (!call error_contains (!lambda () (!call gsub "hello world" "(%w+)" "%2 %2"))
                       ": invalid capture index"
@@ -293,10 +268,10 @@
 (!call is (!call reverse "abcd") "dcba")
 (!call is (!call reverse "") "")
 
-(!call is (!call sub "abcde" 0 1) "ab" "function sub")
-(!call is (!call sub "abcde" 2 3) "cd")
+(!call is (!call sub "abcde" 1 2) "ab" "function sub")
+(!call is (!call sub "abcde" 3 4) "cd")
 (!call is (!call sub "abcde" -2) "de")
-(!call is (!call sub "abcde" 2 1) "")
+(!call is (!call sub "abcde" 3 2) "")
 
 (!call is (!call upper "Test") "TEST" "function upper")
 (!call is (!call upper "TeSt") "TEST")

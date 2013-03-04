@@ -7,7 +7,8 @@
 ;   Copyright (c) 2009-2011 Francois Perrad
 ;
 
-(!call dofile "TAP.tp")
+(!call (!index tvm "dofile") "TAP.tp")
+(!let load (!index tvm "load"))
 
 (!call plan 162)
 
@@ -18,10 +19,6 @@
 ))
 
 (!let todo_info (
-    147: "LuaJIT TODO. \\0"
-    149: "LuaJIT TODO. \\0"
-    151: "LuaJIT TODO. [^\\0]"
-    153: "LuaJIT TODO. [^\\0]"
 ))
 
 (!let split (!lambda (line)
