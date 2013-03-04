@@ -103,13 +103,10 @@
                 (!if (!index todo_info test_number)
                      (!call todo (!index todo_info test_number)))
                 (!let code (!mconcat "\
-                    (!let t ((!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
-                    (!if (!eq (!len t) 0)\
-                         (!return \"nil\"))\
-                    (!loop i (!sub (!len t) 1) 0 -1\
-                            (!let v (!index t i))\
-                            (!assign (!index t (!add i 1)) v))\
-                    (!return (!call (!index table \"concat\") t \"\\t\"))"))
+                    (!let t (!nil (!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
+                    (!if (!eq (!len1 t) 0)\
+                         (!return \"nil\")\
+                         (!return (!call (!index table \"concat\") t \"\\t\")))"))
                 (!let (compiled msg) ((!call load code)))
                 (!if (!not compiled)
                      (!call error (!mconcat "can't compile : " code "\n" msg)))
