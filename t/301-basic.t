@@ -32,7 +32,7 @@
 (!let open (!index io "open"))
 (!let unlink (!index os "remove"))
 
-(!call plan 140)
+(!call plan 146)
 
 (!call contains _VERSION "Lua 5.1" "variable _VERSION")
 
@@ -110,9 +110,9 @@ end\
 (!call f)
 (!call is (!call (!index env "bar") "ok") "ok")
 
-; (!define (f msg) ((!call load "?syntax error?" "errorchunk")))
-; (!call is f !nil "function load(syntax error)")
-; (!call contains msg "[string \"errorchunk\"]:")
+(!define (f msg) ((!call load "?syntax error?" "errorchunk")))
+(!call is f !nil "function load(syntax error)")
+(!call contains msg "unexpected symbol")
 
 (!define (f msg) ((!call load "print 'ok'" "chunk txt" "b")))
 (!call contains  msg "attempt to load chunk with wrong mode")
@@ -153,9 +153,9 @@ end\
 (!define f (!call open "foo.lua" "w"))
 (!callmeth f write "?syntax error?")
 (!callmeth f close)
-; (!define (f msg) ((!call loadfile "foo.lua")))
-; (!call is f !nil "function loadfile (syntax error)")
-; (!call contains msg "unexpected symbol")
+(!define (f msg) ((!call loadfile "foo.lua")))
+(!call is f !nil "function loadfile (syntax error)")
+(!call contains msg "unexpected symbol")
 (!call unlink "foo.lua") ; clean up
 
 (!let loadstring load)
@@ -174,9 +174,9 @@ end\
 (!call is (!call f) 33 "function loadstring")
 (!call is (!call g) 1)
 
-; (!define (f msg) ((!call loadstring "?syntax error?")))
-; (!call is f !nil "function loadstring (syntax error)")
-; (!call contains msg "[string \"?syntax error?\"]:")
+(!define (f msg) ((!call loadstring "?syntax error?")))
+(!call is f !nil "function loadstring (syntax error)")
+(!call contains msg "unexpected symbol")
 
 (!define t ("a" "b" "c"))
 (!define a (!call next t !nil))

@@ -74,7 +74,8 @@ LUALIB_API int luaL_loadbufferx(lua_State *L, const char *buf, size_t size,
     lua_assert(!lua_isnil(L, -1));
     lua_pushlstring(L, buf, size);
     lua_pushstring(L, name);
-    lua_call(L, 2, 1); /* buf = _G._COMPILER(buf, name) */
+    if (lua_pcall(L, 2, 1, 0)) /* buf = _G._COMPILER(buf, name) */
+      return LUA_ERRSYNTAX;
     buf = lua_tolstring(L, -1, &size);
     return tvm_loadbufferx(L, buf, size, name, NULL);
   }
