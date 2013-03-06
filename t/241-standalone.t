@@ -22,7 +22,7 @@
 (!if (!not (!call pcall (!index io "popen") exe " -e \"a=1\""))
      (!call skip_all "io.popen not supported"))
 
-(!call plan 19)
+(!call plan 20)
 (!call diag exe)
 
 (!define f (!call (!index io "open") "hello.tp" "w"))
@@ -53,6 +53,14 @@ print [[Hello World]]\
 (!callmeth f close)
 
 (!call unlink "hello.lua")      ; clean up
+(!call unlink "hello.tpc")      ; clean up
+
+(!call execute (!concat exe " -b hello.tp hello.tpc"))
+(!define cmd (!concat exe " hello.tpc"))
+(!define f (!call (!index io "popen") cmd))
+(!call is (!callmeth f read) "Hello World" "bytecode")
+(!callmeth f close)
+
 (!call unlink "hello.tpc")      ; clean up
 
 (!define cmd (!concat exe " < hello.tp"))

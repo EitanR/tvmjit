@@ -48,6 +48,7 @@ end
 local function readfile(input)
   if type(input) == "function" then return input end
   if input == "-" then input = nil end
+  local loadfile = input:match"%.lua$" and loadfile or tvm.loadfile
   return check(loadfile(input))
 end
 
