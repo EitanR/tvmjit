@@ -10,7 +10,7 @@
 (!call (!index tvm "dofile") "TAP.tp")
 
 (!let load (!index tvm "load"))
-(!let tconcat (!index table "concat"))
+(!let tconcat (!index tvm "concat"))
 (!let plan plan)
 (!let is is)
 (!let contains contains)
@@ -85,7 +85,7 @@
                 (!assign (!index t (!len t)) "end")
                 (!return t)))
 
-(!define a (!nil "a" "b" "c"))
+(!define a ("a" "b" "c"))
 (!call is (!call tconcat a ",") "a,b,c" "call by ref")
 (!define b (!call f a))
 (!call is (!call tconcat b ",") "a,b,c,end")

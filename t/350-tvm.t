@@ -12,6 +12,7 @@
 (!let escape (!index tvm "escape"))
 (!let quote (!index tvm "quote"))
 (!let wchar (!index tvm "wchar"))
+(!let concat (!index tvm "concat"))
 (!let dofile (!index tvm "dofile"))
 (!let load (!index tvm "load"))
 (!let loadfile (!index tvm "loadfile"))
@@ -23,7 +24,7 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 44)
+(!call plan 52)
 
 (!call contains (!index tvm "_VERSION") "TvmJIT 0.0.1" "variable _VERSION")
 
@@ -49,6 +50,27 @@
 (!call error_contains (!lambda () (!call wchar 0 999999))
                       ": bad argument #2 to 'wchar' (invalid value)"
                       "function wchar (invalid)")
+
+
+(!define t ("a" "b" "c" "d" "e"))
+(!call is (!call concat t) "abcde" "function concat")
+(!call is (!call concat t ",") "a,b,c,d,e")
+(!call is (!call concat t "," 1) "b,c,d,e")
+(!call is (!call concat t "," 1 3) "b,c,d")
+(!call is (!call concat t "," 3 1) "")
+
+(!define t ("a" "b" 3 "d" "e"))
+(!call is (!call concat t ",") "a,b,3,d,e" "function concat (number)")
+
+(!define t ("a" "b" "c" "d" "e"))
+(!call error_contains (!lambda () (!call concat t "," 1 6))
+                      ": invalid value (nil) at index 5 in table for 'concat'"
+                      "function concat (out of range)")
+
+(!define t ("a" "b" !true "d" "e"))
+(!call error_contains (!lambda () (!call concat t ","))
+                      ": invalid value (boolean) at index 2 in table for 'concat'"
+                      "function concat (non-string)")
 
 
 (!define f (!call open "lib1.tp" "w"))

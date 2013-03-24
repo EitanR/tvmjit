@@ -20,6 +20,7 @@
 #include "lj_err.h"
 #include "lj_str.h"
 #include "lj_char.h"
+#include "lj_tab.h"
 #include "lj_lib.h"
 
 /* ------------------------------------------------------------------------ */
@@ -99,6 +100,33 @@ LJLIB_CF(tvm_wchar)
     }
     else
       luaL_addchar(&b, k);
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+LJLIB_CF(tvm_concat)
+{
+  luaL_Buffer b;
+  GCtab *t = lj_lib_checktab(L, 1);
+  GCstr *sep = lj_lib_optstr(L, 2);
+  MSize seplen = sep ? sep->len : 0;
+  int32_t i = lj_lib_optint(L, 3, 0);
+  int32_t e = L->base+3 < L->top ? lj_lib_checkint(L, 4) :
+				   (int32_t)lj_tab_len0(t) - 1;
+  luaL_buffinit(L, &b);
+  if (i <= e) {
+    for (;;) {
+      cTValue *o;
+      lua_rawgeti(L, 1, i);
+      o = L->top-1;
+      if (!(tvisstr(o) || tvisnumber(o)))
+	lj_err_callerv(L, LJ_ERR_TABCAT, lj_typename(o), i);
+      luaL_addvalue(&b);
+      if (i++ == e) break;
+      if (seplen)
+	luaL_addlstring(&b, strdata(sep), seplen);
+    }
   }
   luaL_pushresult(&b);
   return 1;
