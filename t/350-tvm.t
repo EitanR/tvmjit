@@ -13,6 +13,7 @@
 (!let quote (!index tvm "quote"))
 (!let wchar (!index tvm "wchar"))
 (!let concat (!index tvm "concat"))
+(!let unpack (!index tvm "unpack"))
 (!let dofile (!index tvm "dofile"))
 (!let load (!index tvm "load"))
 (!let loadfile (!index tvm "loadfile"))
@@ -24,7 +25,7 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 52)
+(!call plan 58)
 
 (!call contains (!index tvm "_VERSION") "TvmJIT 0.0.1" "variable _VERSION")
 
@@ -71,6 +72,13 @@
 (!call error_contains (!lambda () (!call concat t ","))
                       ": invalid value (boolean) at index 2 in table for 'concat'"
                       "function concat (non-string)")
+
+(!call eq_array ((!call unpack ())) () "function unpack")
+(!call eq_array ((!call unpack ("a"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c"))) ("a" "b" "c"))
+(!call eq_array ((!call1 unpack ("a" "b" "c"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c" "d" "e") 1 3)) ("b" "c" "d"))
+(!call eq_array ((!call unpack ("a" "b" "c") 1 3)) ("b" "c"))
 
 
 (!define f (!call open "lib1.tp" "w"))

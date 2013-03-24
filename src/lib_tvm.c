@@ -132,6 +132,27 @@ LJLIB_CF(tvm_concat)
   return 1;
 }
 
+LJLIB_CF(tvm_unpack)
+{
+  GCtab *t = lj_lib_checktab(L, 1);
+  int32_t n, i = lj_lib_optint(L, 2, 0);
+  int32_t e = (L->base+3-1 < L->top && !tvisnil(L->base+3-1)) ?
+	      lj_lib_checkint(L, 3) : (int32_t)lj_tab_len0(t) - 1;
+  if (i > e) return 0;
+  n = e - i + 1;
+  if (n <= 0 || !lua_checkstack(L, n))
+    lj_err_caller(L, LJ_ERR_UNPACK);
+  do {
+    cTValue *tv = lj_tab_getint(t, i);
+    if (tv) {
+      copyTV(L, L->top++, tv);
+    } else {
+      setnilV(L->top++);
+    }
+  } while (i++ < e);
+  return n;
+}
+
 /* -- load Tvm code ------------------------------------------------------- */
 
 static int tvm_load_aux(lua_State *L, int status, int envarg)
