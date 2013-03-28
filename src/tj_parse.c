@@ -2260,31 +2260,32 @@ static void parse_let (LexState *ls, int final)
     GCstr *varname = lex_str(ls);
     var_new(ls, 0, varname, final);
     nvars = 1;
-  }
-  else {
+    if (lex_opt(ls, ')')) {
+      nexps = 0;
+    } else {
+      expr(ls, &e);
+      nexps = 1;
+      lex_check(ls, ')');
+    }
+  } else {
     nvars = 0;
     while (!lex_opt(ls, ')')) {
       GCstr *varname = lex_str(ls);
       var_new(ls, nvars, varname, final);
       nvars++;
     }
-  }
-  if (lex_opt(ls, ')')) {
-    if (final)
-      err_syntax(ls, LJ_ERR_XEXPR);
-    nexps = 0;
-    e.k = VVOID;
-  }
-  else {
-    if (nvars == 1) {
-      nexps = 1;
-      expr(ls, &e);
-    }
-    else {
+    if (lex_opt(ls, ')')) {
+      nexps = 0;
+    } else {
       lex_check(ls, '(');
       nexps = expr_list(ls, &e);
+      lex_check(ls, ')');
     }
-    lex_check(ls, ')');
+  }
+  if (nexps == 0) {
+    if (final)
+      err_syntax(ls, LJ_ERR_XEXPR);
+    e.k = VVOID;
   }
   assign_adjust(ls, nvars, nexps, &e);
   var_add(ls, nvars);
