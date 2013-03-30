@@ -25,7 +25,7 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 58)
+(!call plan 59)
 
 (!call contains (!index tvm "_VERSION") "TvmJIT 0.0.1" "variable _VERSION")
 
@@ -79,6 +79,7 @@
 (!call eq_array ((!call1 unpack ("a" "b" "c"))) ("a"))
 (!call eq_array ((!call unpack ("a" "b" "c" "d" "e") 1 3)) ("b" "c" "d"))
 (!call eq_array ((!call unpack ("a" "b" "c") 1 3)) ("b" "c"))
+(!call eq_array ((!call unpack)) ())
 
 
 (!define f (!call open "lib1.tp" "w"))
