@@ -552,10 +552,10 @@ endif
 endif
 endif
 
-Q= @
-E= @echo
-#Q=
-#E= @:
+#Q= @
+#E= @echo
+Q=
+E= @:
 
 ##############################################################################
 # Make targets.
@@ -729,7 +729,7 @@ sanity:
 	prove --exec="$(RUN_TVMJIT)" ../t/0*.t
 
 test:
-	prove --exec="$(RUN_TVMJIT)" ../t/*.t
+	prove -v --exec="$(RUN_TVMJIT)" ../t/*.t
 
 test-dump:
 	prove --exec="$(RUN_TVMJIT)" ../t/dump/*.t

@@ -8,6 +8,7 @@ install:
 # Build and test.
 script:
   - cd src
+  - pwd
   - make
   - ./tvmjit -v
   - make fulltest
