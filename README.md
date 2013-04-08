@@ -1,6 +1,8 @@
 README for TvmJIT
 =================
 
+[![Build Status](https://travis-ci.org/fperrad/tvmjit.png)](https://travis-ci.org/fperrad/tvmjit)
+
 TvmJIT is a hack around [LuaJIT](http://luajit.org/).
 
 The goal is a more generic VM which could be used for various dynamic languages.
