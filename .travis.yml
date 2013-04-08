@@ -3,10 +3,11 @@ compiler: gcc
 
 # Tool setup.
 install:
-  - sudo apt-get install lua5.1
   - sudo apt-get install liblua5.1-lpeg2
 
 # Build and test.
 script:
+  - cd src
   - make
-  - make -C src fulltest
+  - ./tvmjit -v
+  - make fulltest
