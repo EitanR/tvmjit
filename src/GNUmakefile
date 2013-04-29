@@ -561,7 +561,7 @@ E= @:
 # Make targets.
 ##############################################################################
 
-default all:	$(TARGET_T) lua/lua.tp nqp/translator.tp nqp/nqp.tp \
+default all:	$(TARGET_T) lua/lua.tp nqp/compiler.tp nqp/nqp.tp \
                 lolcode/lolcode.tp lolcode/translator.tp
 
 amalg:
@@ -699,7 +699,7 @@ lua/lua.tp: lua/lua.lua lua/lunokhod.tp
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< >> $@
 	$(Q)chmod +x $@
 
-nqp/translator.tp: nqp/translator.lua lua/lunokhod.tp
+nqp/compiler.tp: nqp/compiler.lua lua/lunokhod.tp
 	$(E) "GEN     $@"
 	$(Q)$(RUN_TVMJIT) lua/lunokhod.tp $< > $@
 
