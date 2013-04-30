@@ -1082,9 +1082,10 @@ how.add_method(var, 'as_op', function (self, want)
 
 end -- AST
 
+
+do -- Parser
+
 local _G = _G
-local arg = arg
-local assert = assert
 local error = error
 local peg = require 'lpeg'
 local locale = peg.locale()
@@ -1098,10 +1099,10 @@ local P = peg.P
 local R = peg.R
 local S = peg.S
 
-
 local lineno
+local gsub = string.gsub
 local function inc_lineno (s)
-    local _, n = string.gsub(s, '\n', '')
+    local _, n = gsub(s, '\n', '')
     lineno = lineno + n
 end
 
@@ -1225,6 +1226,13 @@ local capt_right_paren = C(tok_right_paren) * Cp()
 local tok_semicolon = P';'
 local capt_semicolon = C(tok_semicolon) * Cp()
 
+
+local how = _G['NQP::Metamodel::ClassHOW']:HOW()
+local parser = how:new('TVM::Parser')
+_G['TVM::Parser'] = parser
+how.add_parent(parser, _G['Any'])
+
+
 local BVal = _G['TVM::AST::BVal']
 local NVal = _G['TVM::AST::NVal']
 local SVal = _G['TVM::AST::SVal']
@@ -1234,103 +1242,95 @@ local Block = _G['TVM::AST::Block']
 local Stmts =  _G['TVM::AST::Stmts']
 local CompUnit =  _G['TVM::AST::CompUnit']
 
-local statement;
-local simpleexpr;
+
+how.add_method(parser, 'skip_ws', function (self, s, pos)
+                local capt, posn = capt_ws:match(s, pos)
+                return posn end)
 
 
-local function skip_ws (s, pos)
-    local capt, posn = capt_ws:match(s, pos)
-    return posn
-end
+how.add_method(parser, 'statlist', function (self, s, pos)
+                -- statlist -> { stat `;' }
+                pos = self:skip_ws(s, pos)
+                local stmts = Stmts:new{}
+                while not P(-1):match(s, pos) do
+                    local ast
+                    ast, pos = self:statement(s, pos)
+                    stmts:push(ast)
+                    pos = self:skip_ws(s, pos)
+                    local capt, posn = capt_semicolon:match(s, pos)
+                    if not posn then
+                        syntaxerror "; expected"
+                    end
+                    pos = self:skip_ws(s, posn)
+                end
+                return stmts, pos end)
 
 
-local function statlist (s, pos)
-    -- statlist -> { stat `;' }
-    pos = skip_ws(s, pos)
-    local stmts = Stmts:new{}
-    while not P(-1):match(s, pos) do
-        local ast
-        ast, pos = statement(s, pos)
-        stmts:push(ast)
-        pos = skip_ws(s, pos)
-        local capt, posn = capt_semicolon:match(s, pos)
-        if not posn then
-            syntaxerror "; expected"
-        end
-        pos = skip_ws(s, posn)
-    end
-    return stmts, pos
-end
+how.add_method(parser, 'explist', function (self, s, pos, op)
+                -- explist -> expr { `,' expr }
+                local ast, pos = self:simpleexpr(s, pos)
+                op:push(ast)
+                pos = self:skip_ws(s, pos)
+                local capt, posn = capt_comma:match(s, pos)
+                while posn do
+                    pos = self:skip_ws(s, posn)
+                    ast, pos = self:simpleexpr(s, pos)
+                    op:push(ast)
+                    pos = self:skip_ws(s, pos)
+                    capt, posn = capt_comma:match(s, pos)
+                end
+                return pos end)
 
 
-local function explist (s, pos, op)
-    -- explist -> expr { `,' expr }
-    local ast, pos = simpleexpr(s, pos)
-    op:push(ast)
-    pos = skip_ws(s, pos)
-    local capt, posn = capt_comma:match(s, pos)
-    while posn do
-        pos = skip_ws(s, posn)
-        ast, pos = simpleexpr(s, pos)
-        op:push(ast)
-        pos = skip_ws(s, pos)
-        capt, posn = capt_comma:match(s, pos)
-    end
-    return pos
-end
+how.add_method(parser, 'funcargs', function (self, s, pos, op)
+                -- funcargs -> `(' [ explist ] `)'
+                local capt, posn = capt_left_paren:match(s, pos)
+                if posn then
+                    pos = self:skip_ws(s, posn)
+                    capt, posn = capt_right_paren:match(s, pos)
+                    if posn then
+                        return posn
+                    end
+                    pos = self:explist(s, pos, op)
+                    capt, posn = capt_right_paren:match(s, pos)
+                    if posn then
+                        return posn
+                    else
+                        syntaxerror ") expected"
+                    end
+                end
+                syntaxerror "function arguments expected"
+                end)
 
 
-local function funcargs (s, pos, op)
-    -- funcargs -> `(' [ explist ] `)'
-    local capt, posn = capt_left_paren:match(s, pos)
-    if posn then
-        pos = skip_ws(s, posn)
-        capt, posn = capt_right_paren:match(s, pos)
-        if posn then
-            return posn
-        end
-        pos = explist(s, pos, op)
-        capt, posn = capt_right_paren:match(s, pos)
-        if posn then
-            return posn
-        else
-            syntaxerror ") expected"
-        end
-    end
-    syntaxerror "function arguments expected"
-end
+how.add_method(parser, 'simpleexpr', function (self, s, pos)
+                -- simpleexp -> NUMBER | STRING
+                local capt, posn = capt_number:match(s, pos)
+                if posn then
+                    return NVal:new{ value=capt }, posn
+                end
+                capt, posn = capt_string:match(s, pos)
+                if posn then
+                    return SVal:new{ value=capt }, posn
+                end
+                syntaxerror "P expected"
+                end)
 
 
-function simpleexpr (s, pos)
-    -- simpleexp -> NUMBER | STRING
-    local capt, posn = capt_number:match(s, pos)
-    if posn then
-        return NVal:new{ value=capt }, posn
-    end
-    capt, posn = capt_string:match(s, pos)
-    if posn then
-        return SVal:new{ value=capt }, posn
-    end
-    syntaxerror "P expected"
-end
+how.add_method(parser, 'callstat', function (self, s, pos)
+                local lineno = lineno
+                pos = self:skip_ws(s, pos)
+                capt, posn = capt_identifier:match(s, pos)
+                if not posn then
+                    syntaxerror "identifier expected"
+                end
+                local op = Op:new{ lineno=lineno, op='call', name='&' .. capt }
+                local pos = self:funcargs(s, posn, op)
+                return op, pos end)
 
 
-local function callstat (s, pos)
-    local lineno = lineno
-    pos = skip_ws(s, pos)
-    capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "identifier expected"
-    end
-    local op = Op:new{ lineno=lineno, op='call', name='&' .. capt }
-    local pos = funcargs(s, posn, op)
-    return op, pos
-end
-
-
-function statement (s, pos)
-    return callstat(s, pos)
-end
+how.add_method(parser, 'statement', function (self, s, pos)
+                return self:callstat(s, pos) end)
 
 
 local prelude = [[
@@ -2342,26 +2342,39 @@ local termination = [[
 (!callmeth f close)
 ]]
 
+how.add_method(parser, 'parse', function (self, s, fname)
+                local pos = (bom * Cp()):match(s, 1) or 1
+                lineno = 1
+                local ast, pos = self:statlist(s, pos)
+                if not P(-1):match(s, pos) then
+                    syntaxerror("<eof> expected at " .. pos)
+                end
+                return CompUnit:new{ filename=fname, prelude=prelude, termination=nil; ast }
+                end)
+
+end -- Parser
+
+
+local _G = _G
+local arg = arg
+local open = io.open
+local print = print
+
 local function compile (s, fname)
-    local pos = (bom * Cp()):match(s, 1) or 1
-    lineno = 1
-    local ast, pos = statlist(s, pos)
-    if not P(-1):match(s, pos) then
-        syntaxerror("<eof> expected at " .. pos)
-    end
-    return CompUnit:new{ filename=fname, prelude=prelude, termination=nil; ast }
+    local parser = _G['TVM::Parser']:new{}
+    return parser:parse(s, fname)
 end
 
 --[[
 --local f = assert(io.open('model.dot', 'w'))
 local f = assert(io.popen("dot -T png -o model.png", 'w'))
-f:write(uml2dot({ note = "model - by uml2dot\\l" .. os.date('%d/%m/%y %H:%M') }))
+f:write(uml2dot({ note = "model compiler\\lby uml2dot\\l" .. os.date('%d/%m/%y %H:%M') }))
 f:close()
 --]]
 
 local fname = arg and arg[1]
 if fname then
-    local f, msg = _G.io.open(fname, 'r')
+    local f, msg = open(fname, 'r')
     if not f then
         error(msg)
     end
