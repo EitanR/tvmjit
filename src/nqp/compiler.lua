@@ -860,15 +860,6 @@ how.add_method(op, 'as_op', function (self, want)
                                                  top:new{ top:new{ '!callmeth', expr:as_op(options), '_iter1' } },
                                                  stmts:as_op(options) }
                     ops:push(op1)
-                elseif op == 'bind' then
-                    local var = assert(self[1])
-                    local val = self[2]
-                    if var:decl() then
-                        ops:push(var:as_op())
-                        var:reset'decl'
-                    end
-                    local op1 = top:new{ '!assign', var:as_op(), val and val:as_op'Box' or '!nil' }
-                    ops:push(op1)
                 elseif op == 'list' then
                     local args = top:new{}
                     for i = 1, #self do
@@ -893,6 +884,9 @@ how.add_method(op, 'as_op', function (self, want)
                         returns = 'str'
                     elseif name == '&prefix:<+>' then
                         op1 = expr1:as_op'num'
+                        returns = 'num'
+                    elseif name == '&prefix:<->' then
+                        op1 = top:new{ '!neg', expr1:as_op'num' }
                         returns = 'num'
                     elseif name == '&prefix:<?>' then
                         op1 = expr1:as_op'bool'
@@ -946,19 +940,35 @@ how.add_method(op, 'as_op', function (self, want)
                         returns = 'str'
                     elseif name == '&infix:<<>' then
                         local expr2 = assert(self[2])
-                        op1 = top:new{ '!lt', expr1:as_op(), expr2:as_op() }
+                        op1 = top:new{ '!lt', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<<=>' then
                         local expr2 = assert(self[2])
-                        op1 = top:new{ '!le', expr1:as_op(), expr2:as_op() }
+                        op1 = top:new{ '!le', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<>>' then
                         local expr2 = assert(self[2])
-                        op1 = top:new{ '!gt', expr1:as_op(), expr2:as_op() }
+                        op1 = top:new{ '!gt', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<>=>' then
                         local expr2 = assert(self[2])
-                        op1 = top:new{ '!ge', expr1:as_op(), expr2:as_op() }
+                        op1 = top:new{ '!ge', expr1:as_op'num', expr2:as_op'num' }
+                        returns = 'bool'
+                    elseif name == '&infix:<lt>' then
+                        local expr2 = assert(self[2])
+                        op1 = top:new{ '!lt', expr1:as_op'str', expr2:as_op'str' }
+                        returns = 'bool'
+                    elseif name == '&infix:<le>' then
+                        local expr2 = assert(self[2])
+                        op1 = top:new{ '!le', expr1:as_op'str', expr2:as_op'str' }
+                        returns = 'bool'
+                    elseif name == '&infix:<gt>' then
+                        local expr2 = assert(self[2])
+                        op1 = top:new{ '!gt', expr1:as_op'str', expr2:as_op'str' }
+                        returns = 'bool'
+                    elseif name == '&infix:<ge>' then
+                        local expr2 = assert(self[2])
+                        op1 = top:new{ '!ge', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<+|>' then
                         local expr2 = assert(self[2])
@@ -984,15 +994,22 @@ how.add_method(op, 'as_op', function (self, want)
                         op1 = top:new{ '!or', top:new{ '!and', expr1:as_op'bool',
                                                                expr2:as_op() },
                                               expr3:as_op() }
-                    elseif name == 'postfix:<++>' then
+                    elseif name == '&postfix:<++>' then
                         op1 = top:new{ '!callmeth1', expr1:as_op(), '_postincr' }
-                    elseif name == 'postfix:<-->' then
+                    elseif name == '&postfix:<-->' then
                         op1 = top:new{ '!callmeth1', expr1:as_op(), '_postdecr' }
                     elseif name == '&infix:<//>' then
                         local expr2 = assert(self[2])
                         op1 = top:new{ '!or', top:new{ '!and', top:new{ '!callmeth', expr1:as_op(), 'defined' },
                                                                expr1:as_op() },
                                               expr2:as_op() }
+                    elseif name == '&infix:<:=>' then
+                        local expr2 = self[2]
+                        if expr1:decl() then
+                            ops:push(expr1:as_op())
+                            expr1:reset'decl'
+                        end
+                        op1 = top:new{ '!assign', expr1:as_op(), expr2 and expr2:as_op'Box' or '!nil' }
                     else
                         error("op with name=" .. name)
                     end
@@ -1113,15 +1130,22 @@ end
 local bom = P"\xEF\xBB\xBF"
 local hspace = S' \t'
 local ch_ident = R('09', 'AZ', 'az', '__')
+local not_ch_ident = -ch_ident
 
 local identifier = R('AZ', 'az', '__') * ch_ident^0
 local capt_identifier = C(identifier) * Cp()
+
+local sigil = S'$@%&'
+local twigil = S'*!?'
+local name = identifier
+local variable = sigil * twigil^-1 * name
+local capt_variable = C(variable) * Cp()
 
 local ws; do
     local pod_begin = S'\n\r' * P'=begin'
     local pod_end = S'\n\r' * P'=end'
     local open = pod_begin * hspace^1 * Cg(identifier, 'name')
-    local close = pod_end * hspace^1 C(identifier)
+    local close = pod_end * hspace^1 * C(identifier)
     local closeeq = Cmt(close * Cb'name', function (s, n, a, b) return a == b end)
     local pod_comment = (open * (P(1) - closeeq)^0 * close)
                       + (pod_begin * (P(1) - pod_end)^0 * pod_end)
@@ -1216,6 +1240,32 @@ local tok_string; do
 end
 local capt_string = tok_string * Cp()
 
+local tok_angle; do
+    local quote = tvm.quote
+    local ch_angle = P(1) - P'>'
+    tok_angle = ((P'<' * Cs(ch_angle^0) * P'>') / quote)
+end
+local capt_angle = tok_angle * Cp()
+
+local tok_if = P'if' * not_ch_ident
+local capt_if = C(tok_if) * Cp()
+local tok_else = P'else' * not_ch_ident
+local capt_else = C(tok_else) * Cp()
+local tok_elsif = P'elsif' * not_ch_ident
+local capt_elsif = C(tok_elsif) * Cp()
+local tok_for = P'for' * not_ch_ident
+local capt_for = C(tok_for) * Cp()
+local tok_my = P'my' * not_ch_ident
+local capt_my = C(tok_my) * Cp()
+local tok_our = P'our' * not_ch_ident
+local capt_our = C(tok_our) * Cp()
+local tok_unless = P'unless' * not_ch_ident
+local capt_unless = C(tok_unless) * Cp()
+local tok_until = P'until' * not_ch_ident
+local capt_until = C(tok_until) * Cp()
+local tok_while = P'while' * not_ch_ident
+local capt_while = C(tok_while) * Cp()
+
 
 local tok_comma = P','
 local capt_comma = C(tok_comma) * Cp()
@@ -1223,14 +1273,35 @@ local tok_left_paren = P'('
 local capt_left_paren = C(tok_left_paren) * Cp()
 local tok_right_paren = P')'
 local capt_right_paren = C(tok_right_paren) * Cp()
+local tok_left_bracket = P'['
+local capt_left_bracket = C(tok_left_bracket) * Cp()
+local tok_right_bracket = P']'
+local capt_right_bracket = C(tok_right_bracket) * Cp()
+local tok_left_curly = P'{'
+local capt_left_curly = C(tok_left_curly) * Cp()
+local tok_right_curly = P'}'
+local capt_right_curly = C(tok_right_curly) * Cp()
 local tok_semicolon = P';'
 local capt_semicolon = C(tok_semicolon) * Cp()
+
+local postfix = P'++' + P'--'
+local capt_postfix = C(postfix) * Cp()
+local prefix = P'++' + P'--' + P'+' + P'~' + P'-' + P'?' + P'!' + P'|'
+local capt_prefix = C(prefix) * Cp()
+local infix = P'**' + P'*' + P'/' + P'%' + P'+&' + P'+|' + P'+^' + P'+' + P'-' + P'~'
+             + P'==' + P'!=' + P'<=' + P'<' + P'>=' + P'>' + P'eq' + P'ne' + P'le' + P'ge' + P'lt' + P'gt' + P'=:='
+             + P'&&' + P'||' + P'//' + P':=' + P'::=' + P'='
+local capt_infix = C(infix) * Cp()
 
 
 local how = _G['NQP::Metamodel::ClassHOW']:HOW()
 local parser = how:new('TVM::Parser')
 _G['TVM::Parser'] = parser
 how.add_parent(parser, _G['Any'])
+how.add_attribute(parser, { name = 'src', type = str })
+how.add_attribute(parser, { name = 'pos', type = num })
+how.add_attribute(parser, { name = 'init' })
+how.add_attribute(parser, { name = 'scope', default = function () return { ['$_']='lexical' } end })
 
 
 local BVal = _G['TVM::AST::BVal']
@@ -1243,58 +1314,88 @@ local Stmts =  _G['TVM::AST::Stmts']
 local CompUnit =  _G['TVM::AST::CompUnit']
 
 
-how.add_method(parser, 'skip_ws', function (self, s, pos)
-                local capt, posn = capt_ws:match(s, pos)
-                return posn end)
-
-
-how.add_method(parser, 'statlist', function (self, s, pos)
-                -- statlist -> { stat `;' }
-                pos = self:skip_ws(s, pos)
-                local stmts = Stmts:new{}
-                while not P(-1):match(s, pos) do
-                    local ast
-                    ast, pos = self:statement(s, pos)
-                    stmts:push(ast)
-                    pos = self:skip_ws(s, pos)
-                    local capt, posn = capt_semicolon:match(s, pos)
-                    if not posn then
-                        syntaxerror "; expected"
-                    end
-                    pos = self:skip_ws(s, posn)
+how.add_method(parser, 'skip_ws', function (self, pos)
+                if pos then
+                    self:pos(pos)
                 end
-                return stmts, pos end)
-
-
-how.add_method(parser, 'explist', function (self, s, pos, op)
-                -- explist -> expr { `,' expr }
-                local ast, pos = self:simpleexpr(s, pos)
-                op:push(ast)
-                pos = self:skip_ws(s, pos)
-                local capt, posn = capt_comma:match(s, pos)
-                while posn do
-                    pos = self:skip_ws(s, posn)
-                    ast, pos = self:simpleexpr(s, pos)
-                    op:push(ast)
-                    pos = self:skip_ws(s, pos)
-                    capt, posn = capt_comma:match(s, pos)
-                end
-                return pos end)
-
-
-how.add_method(parser, 'funcargs', function (self, s, pos, op)
-                -- funcargs -> `(' [ explist ] `)'
-                local capt, posn = capt_left_paren:match(s, pos)
+                local capt, posn = capt_ws:match(self:src(), self:pos())
                 if posn then
-                    pos = self:skip_ws(s, posn)
-                    capt, posn = capt_right_paren:match(s, pos)
+                    self:pos(posn)
+                end
+                end)
+
+
+how.add_method(parser, 'statlist', function (self)
+                -- statlist -> { stat `;' }
+                self:skip_ws()
+                local stmts = Stmts:new{}
+                while not P(-1):match(self:src(), self:pos())
+                  and not tok_right_curly:match(self:src(), self:pos()) do
+                    stmts:push(self:statement())
+                    self:skip_ws()
+                end
+                return stmts end)
+
+
+how.add_method(parser, 'yindex', function (self)
+                -- index -> '[' expr ']'
+                local capt, posn = capt_left_bracket:match(self:src(), self:pos())
+                assert(posn)
+                self:skip_ws(posn)
+                local ast = self:expr()
+                capt, posn = capt_right_bracket:match(self:src(), self:pos())
+                if not posn then
+                    syntaxerror "] expected"
+                end
+                self:skip_ws(posn)
+                return ast
+                end)
+
+
+how.add_method(parser, 'zindex', function (self)
+                -- index -> '{' expr '}'
+                local capt, posn = capt_left_curly:match(self:src(), self:pos())
+                assert(posn)
+                self:skip_ws(posn)
+                local ast = self:expr()
+                capt, posn = capt_right_curly:match(self:src(), self:pos())
+                if not posn then
+                    syntaxerror "} expected"
+                end
+                self:skip_ws(posn)
+                return ast
+                end)
+
+
+how.add_method(parser, 'explist', function (self, op)
+                -- explist -> expr { `,' expr }
+                op:push(self:expr())
+                self:skip_ws()
+                local capt, posn = capt_comma:match(self:src(), self:pos())
+                while posn do
+                    self:skip_ws(posn)
+                    op:push(self:expr())
+                    self:skip_ws()
+                    capt, posn = capt_comma:match(self:src(), self:pos())
+                end
+                end)
+
+
+how.add_method(parser, 'funcargs', function (self, op)
+                -- funcargs -> `(' [ explist ] `)'
+                local capt, posn = capt_left_paren:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    capt, posn = capt_right_paren:match(self:src(), self:pos())
                     if posn then
-                        return posn
+                        self:pos(posn)
+                        return
                     end
-                    pos = self:explist(s, pos, op)
-                    capt, posn = capt_right_paren:match(s, pos)
+                    self:explist(op)
+                    capt, posn = capt_right_paren:match(self:src(), self:pos())
                     if posn then
-                        return posn
+                        self:skip_ws(posn)
+                        return
                     else
                         syntaxerror ") expected"
                     end
@@ -1303,34 +1404,364 @@ how.add_method(parser, 'funcargs', function (self, s, pos, op)
                 end)
 
 
-how.add_method(parser, 'simpleexpr', function (self, s, pos)
-                -- simpleexp -> NUMBER | STRING
-                local capt, posn = capt_number:match(s, pos)
+how.add_method(parser, 'primaryexpr', function (self)
+                -- primaryexp -> NAME | '(' expr ')'
+                self:skip_ws()
+                local capt, posn = capt_my:match(self:src(), self:pos())
                 if posn then
-                    return NVal:new{ value=capt }, posn
+                    self:skip_ws(posn)
+                    capt, posn = capt_variable:match(self:src(), self:pos())
+                    if posn then
+                        self:pos(posn)
+                        self:scope()[capt] = 'lexical'
+                        local init = self:init()
+                        local sigil = string.sub(capt, 1, 1)
+                        local var = Var:new{ name=capt, scope='lexical', decl=true }
+                        if     sigil == '%' then
+                            init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', var, Op:new{ op='hash' } })
+                            return Var:new{ name=capt, scope='lexical' }
+                        elseif sigil == '@' then
+                            init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', var, Op:new{ op='list' } })
+                            return Var:new{ name=capt, scope='lexical' }
+                        else
+                            return var
+                        end
+                    end
+                    syntaxerror "variable expected"
                 end
-                capt, posn = capt_string:match(s, pos)
+                capt, posn = capt_our:match(self:src(), self:pos())
                 if posn then
-                    return SVal:new{ value=capt }, posn
+                    self:skip_ws(posn)
+                    capt, posn = capt_variable:match(self:src(), self:pos())
+                    if posn then
+                        self:pos(posn)
+                        self:scope()[capt] = 'package'
+                        local init = self:init()
+                        local sigil = string.sub(capt, 1, 1)
+                        local var = Var:new{ name=capt, scope='package', decl=true }
+                        if     sigil == '%' then
+                            init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', var, Op:new{ op='hash' } })
+                            return Var:new{ name=capt, scope='package' }
+                        elseif sigil == '@' then
+                            init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', var, Op:new{ op='list' } })
+                            return Var:new{ name=capt, scope='package' }
+                        else
+                            return var
+                        end
+                    end
+                    syntaxerror "variable expected"
                 end
-                syntaxerror "P expected"
+                capt, posn = capt_left_paren:match(self:src(), self:pos())
+                if posn then
+                    self:pos(posn)
+                    local op = Op:new{ op='list' }
+                    self:explist(op)
+                    capt, posn = capt_right_paren:match(self:src(), self:pos())
+                    if posn then
+                        self:pos(posn)
+                        return (#op == 1) and op[1] or op
+                    else
+                        syntaxerror ") expected"
+                    end
+                end
+                capt, posn = capt_variable:match(self:src(), self:pos())
+                if posn then
+                    self:pos(posn)
+                    local scope = assert(self:scope()[capt])
+                    return Var:new{ name=capt, scope=scope }
+                end
+                capt, posn = capt_identifier:match(self:src(), self:pos())
+                if posn then
+                    self:pos(posn)
+                    return capt
+                end
+                syntaxerror "unexpected symbol"
                 end)
 
 
-how.add_method(parser, 'callstat', function (self, s, pos)
-                local lineno = lineno
-                pos = self:skip_ws(s, pos)
-                capt, posn = capt_identifier:match(s, pos)
-                if not posn then
-                    syntaxerror "identifier expected"
+how.add_method(parser, 'suffixedexpr', function (self)
+                -- suffixedexp ->
+                --    primaryexp { `.' NAME | `[' exp `]' | `:' NAME funcargs | funcargs }
+                local op = self:primaryexpr()
+                local capt, posn = capt_postfix:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    op = Op:new{ op='op', name='&postfix:<' .. capt .. '>', op }
                 end
-                local op = Op:new{ lineno=lineno, op='call', name='&' .. capt }
-                local pos = self:funcargs(s, posn, op)
-                return op, pos end)
+                while true do
+                    capt, posn = capt_angle:match(self:src(), self:pos())
+                    if posn then
+                        self:pos(posn)
+                        op = Var:new{ scope='associative', op, SVal:new{ value=capt } }
+                    elseif tok_left_curly:match(self:src(), self:pos()) then
+                        op = Var:new{ scope='associative', op, self:zindex() }
+                    elseif tok_left_bracket:match(self:src(), self:pos()) then
+                        op = Var:new{ scope='positional', op, self:yindex() }
+                    elseif tok_left_paren:match(self:src(), self:pos()) then
+                        if type(op) == 'string' then
+                            op = Op:new{ lineno=lineno, op='call', name='&' .. op }
+                        else
+                            op = Op:new{ lineno=lineno, op='call', op }
+                        end
+                        self:funcargs(op)
+                    else
+                        return op
+                    end
+                end
+                end)
 
 
-how.add_method(parser, 'statement', function (self, s, pos)
-                return self:callstat(s, pos) end)
+how.add_method(parser, 'simpleexpr', function (self)
+                -- simpleexp -> NUMBER | STRING | suffixedexpr
+                local capt, posn = capt_number:match(self:src(), self:pos())
+                if posn then
+                    self:pos(posn)
+                    return NVal:new{ value=capt }
+                end
+                capt, posn = capt_string:match(self:src(), self:pos())
+                if posn then
+                    self:pos(posn)
+                    return SVal:new{ value=capt }
+                end
+                return self:suffixedexpr()
+                end)
+
+
+local priority = {
+    --        { left right }
+    ['+']     = { 6, 6 },
+    ['+&']    = { 6, 6 },
+    ['+|']    = { 6, 6 },
+    ['+^']    = { 6, 6 },
+    ['-']     = { 6, 6 },
+    ['*']     = { 7, 7 },
+    ['/']     = { 7, 7 },
+    ['%']     = { 7, 7 },
+    ['**']    = { 10, 9 },      -- right associative
+    ['~']     = { 5, 4 },       -- right associative
+    ['ne']    = { 3, 3 },
+    ['eq']    = { 3, 3 },
+    ['lt']    = { 3, 3 },
+    ['le']    = { 3, 3 },
+    ['gt']    = { 3, 3 },
+    ['ge']    = { 3, 3 },
+    ['!=']    = { 3, 3 },
+    ['==']    = { 3, 3 },
+    ['=:=']   = { 3, 3 },
+    ['<=']    = { 3, 3 },
+    ['<']     = { 3, 3 },
+    ['>=']    = { 3, 3 },
+    ['>']     = { 3, 3 },
+    ['&&']    = { 2, 2 },
+    ['//']    = { 2, 2 },
+    ['||']    = { 2, 2 },
+    [':=']    = { 1, 1 },
+}
+
+how.add_method(parser, 'expr', function (self, limit)
+                -- expr -> (simpleexp | unop expr) { binop expr }
+                limit = limit or 0
+                local op
+                local capt, posn = capt_prefix:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    op = Op:new{ op='op', name='&prefix:<' .. capt .. '>' }
+                    op:push(self:expr(8))       -- UNARY_PRIORITY
+                else
+                    op = self:simpleexpr(s, pos, buf, one)
+                end
+                self:skip_ws(s)
+                capt, posn = capt_infix:match(self:src(), self:pos())
+                while posn and assert(priority[capt])[1] > limit do
+                    self:skip_ws(posn)
+                    op = Op:new{ op='op', name='&infix:<' .. capt .. '>', op }
+                    op:push(self:expr(priority[capt][2]))
+                    self:skip_ws()
+                    capt, posn = capt_infix:match(self:src(), self:pos())
+                end
+                return op
+                end)
+
+
+how.add_method(parser, 'block', function (self)
+                local capt, posn = capt_left_curly:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    local lineno =lineno
+                    local ast = self:statlist()
+                    capt, posn = capt_right_curly:match(self:src(), self:pos())
+                    if not posn then
+                        syntaxerror "} expected"
+                    end
+                    self:skip_ws(posn)
+                    capt, posn = capt_semicolon:match(self:src(), self:pos())
+                    if posn then
+                        self:skip_ws(posn)
+                    end
+                    return Block:new{ lineno=lineno, ast }
+                end
+                syntaxerror "Missing block"
+                end)
+
+
+how.add_method(parser, 'pblock', function (self)
+                local capt, posn = capt_left_curly:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+--                    local lineno =lineno
+                    local ast = self:statlist()
+                    capt, posn = capt_right_curly:match(self:src(), self:pos())
+                    if not posn then
+                        syntaxerror "} expected"
+                    end
+                    self:skip_ws(posn)
+--                    return Block:new{ lineno=lineno, ast }
+                    return ast
+                end
+                syntaxerror "Missing block"
+                end)
+
+
+how.add_method(parser, 'xblock', function (self, op)
+                op:push(self:expr())
+                self:skip_ws()
+                op:push(self:pblock())
+                return op
+                end)
+
+
+how.add_method(parser, 'ifstat', function (self)
+                local op = Op:new{ lineno=lineno, op='if' }
+                local op1 = op
+                self:xblock(op)
+                local capt, posn = capt_elsif:match(self:src(), self:pos())
+                while posn do
+                    local opn = Op:new{ lineno=lineno, op='if' }
+                    op:push(opn)
+                    self:skip_ws(posn)
+                    op = self:xblock(opn)
+                    capt, posn = capt_elsif:match(self:src(), self:pos())
+                end
+                capt, posn = capt_else:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    op:push(self:pblock())
+                end
+                return op1
+                end)
+
+
+how.add_method(parser, 'unlessstat', function (self)
+                local op = Op:new{ lineno=lineno, op='unless' }
+                return self:xblock(op)
+                end)
+
+
+how.add_method(parser, 'whilestat', function (self)
+                local op = Op:new{ lineno=lineno, op='while' }
+                return self:xblock(op)
+                end)
+
+
+how.add_method(parser, 'untilstat', function (self)
+                local op = Op:new{ lineno=lineno, op='until' }
+                return self:xblock(op)
+                end)
+
+
+how.add_method(parser, 'forstat', function (self)
+                local op = Op:new{ lineno=lineno, op='for' }
+                return self:xblock(op)
+                end)
+
+
+how.add_method(parser, 'statement_mod_cond', function (self, ast)
+                local capt, posn = capt_if:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return Op:new{ lineno=lineno, op='if', self:expr(), ast }
+                end
+                capt, posn = capt_unless:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return Op:new{ lineno=lineno, op='unless', self:expr(), ast }
+                end
+                return ast
+                end)
+
+
+how.add_method(parser, 'statement_mod_loop', function (self, ast)
+                local capt, posn = capt_while:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return Op:new{ lineno=lineno, op='while', self:expr(), ast }
+                end
+                capt, posn = capt_until:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return Op:new{ lineno=lineno, op='until', self:expr(), ast }
+                end
+                capt, posn = capt_for:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return Op:new{ lineno=lineno, op='for', self:expr(), ast }
+                end
+                return ast
+                end)
+
+
+how.add_method(parser, 'statement', function (self)
+                self:skip_ws()
+                -- stat -> block
+                if capt_left_curly:match(self:src(), self:pos()) then
+                    return self:block()
+                end
+                -- stat -> ifstat
+                local capt, posn = capt_if:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:ifstat()
+                end
+                -- stat -> unlessstat
+                capt, posn = capt_unless:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:unlessstat()
+                end
+                -- stat -> whilestat
+                capt, posn = capt_while:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:whilestat()
+                end
+                -- stat -> untilstat
+                capt, posn = capt_until:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:untilstat()
+                end
+                -- stat -> forstat
+                capt, posn = capt_for:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:forstat()
+                end
+                local ast = self:expr()
+                ast = self:statement_mod_cond(ast)
+                ast = self:statement_mod_loop(ast)
+                if not P(-1):match(self:src(), self:pos())
+               and not tok_right_curly:match(self:src(), self:pos()) then
+                    capt, posn = capt_semicolon:match(self:src(), self:pos())
+                    if not posn then
+                        syntaxerror "; expected"
+                    end
+                    self:skip_ws(posn)
+                end
+                if ast:isa(Var) then
+                    return
+                end
+                return ast
+                end)
 
 
 local prelude = [[
@@ -2129,7 +2560,7 @@ local prelude = [[
 (!assign (!index _P6PKG "Hash") p6hash)
 (!call (!index p6class "add_parent") (p6hash p6any))
 (!let keystr (!lambda (k)
-                (!return (!or (!and (!and (!eq (!call1 type k) "table") (!index k "_VALUES")) (!callmeth1 k str)) k))))
+                (!return (!or (!and (!and (!eq (!call1 type k) "table") (!index k "_VALUES")) (!callmeth1 k str)) (!call1 tostring k)))))
 (!assign (!index (!index p6hash "_VALUES") "mt") (
         "__index": (!lambda (t k)
                         (!return (!or (!call1 rawget (!index t "_VALUES") (!call1 keystr k)) (!index (!index (!index (!index t "_CLASS") "_VALUES") "proto") k))))
@@ -2343,13 +2774,16 @@ local termination = [[
 ]]
 
 how.add_method(parser, 'parse', function (self, s, fname)
-                local pos = (bom * Cp()):match(s, 1) or 1
                 lineno = 1
-                local ast, pos = self:statlist(s, pos)
-                if not P(-1):match(s, pos) then
-                    syntaxerror("<eof> expected at " .. pos)
+                self:src(s)
+                self:pos((bom * Cp()):match(self:src(), 1) or 1)
+                self:init(Stmts:new{})
+                local block = Block:new{ self:init(), self:statlist() }
+                local unit = CompUnit:new{ filename=fname, prelude=prelude, termination=nil; block }
+                if not P(-1):match(self:src(), self:pos()) then
+                    syntaxerror("<eof> expected at " .. self:pos())
                 end
-                return CompUnit:new{ filename=fname, prelude=prelude, termination=nil; ast }
+                return unit
                 end)
 
 end -- Parser
