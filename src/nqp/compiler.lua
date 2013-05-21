@@ -2064,9 +2064,7 @@ how.add_method(parser, 'pblock', function (self)
                 local capt, posn = capt_arrow:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    print('signature')
                     sig = self:signature()
-                    print(sig:dump())
                 end
                 capt, posn = capt_left_curly:match(self:src(), self:pos())
                 if posn then
