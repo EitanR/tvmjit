@@ -1,4 +1,4 @@
-#!./parrot nqp.pbc
+#! nqp
 
 # lists and for
 

@@ -756,9 +756,7 @@ local block = how:new('TVM::AST::Block')
 _G['TVM::AST::Block'] = block
 how.add_parent(block, ast)
 how.add_attribute(block, { name = 'name', type = str })
-how.add_attribute(block, { name = 'blocktype', type = str, default = 'immediate' })
-how.add_attribute(block, { name = 'parents' })
-how.add_attribute(block, { name = 'roles' })
+how.add_attribute(block, { name = 'blocktype', type = str })
 local function signature (op, params)
                 local pargs = top:new{}
                 local nargs = tops:new{}
@@ -788,6 +786,20 @@ local function signature (op, params)
                 op:push(nargs)
                 op:push(lex)
 end
+local function statements (op, stmts)
+                for i = 1, #stmts-1 do
+                    op:push(stmts[i]:as_op())
+                end
+                local last = stmts[#stmts]
+                local lineno = last:lineno()
+                local ops = tops:new{}
+                if lineno then
+                    last:reset('lineno')
+                    ops:push(top:new{ '!line', lineno })
+                end
+                ops:push(top:new{ '!return', last:as_op() })
+                op:push(ops)
+end
 how.add_method(block, 'as_op', function (self)
                 local blocktype = assert(self:blocktype())
                 if blocktype == 'immediate' then
@@ -799,19 +811,12 @@ how.add_method(block, 'as_op', function (self)
                 elseif blocktype == 'routine' then
                     local op = top:new{ '!lambda', top:new{ '_' } }
                     signature(op, assert(self[1]))
-                    local stmts = assert(self[2])
-                    for i = 1, #stmts-1 do
-                        op:push(stmts[i]:as_op(options))
-                    end
-                    local last = stmts[#stmts]
-                    local lineno = last:lineno()
-                    local ops = tops:new{}
-                    if lineno then
-                        last:reset('lineno')
-                        ops:push(top:new{ '!line', lineno })
-                    end
-                    ops:push(top:new{ '!return', last:as_op(options) })
-                    op:push(ops)
+                    statements(op, assert(self[2][2]))
+                    return op
+                elseif blocktype == 'method' then
+                    local op = top:new{ '!lambda', top:new{ 'self', '_' } }
+                    signature(op, assert(self[1]))
+                    statements(op, assert(self[2][2]))
                     return op
                 else
                     error("block with blocktype=" .. blocktype)
@@ -861,7 +866,9 @@ how.add_method(op, 'as_op', function (self, want)
                     if lineno then
                         ops:push(top:new{ '!line', lineno })
                     end
-                    local obj = assert(self[1]):as_op()
+                    local obj = assert(self[1])
+                    obj:reset'lineno'
+                    obj = obj:as_op()
                     local args = top:new{}
                     for i = (name and 2 or 3), #self do
                         local v = self[i]
@@ -891,9 +898,17 @@ how.add_method(op, 'as_op', function (self, want)
                     else
                         op1:push(top:new{ '!not', expr:as_op'bool' })
                     end
-                    op1:push(top:new{ '!do', _then:as_op() })
+                    if _then:isa(_G['TVM::AST::Block']) then
+                        op1:push(_then:as_op())
+                    else
+                        op1:push(top:new{ '!do', _then:as_op() })
+                    end
                     if _else then
-                        op1:push(top:new{ '!do', _else:as_op() })
+                        if _else:isa(_G['TVM::AST::Block']) then
+                            op1:push(_else:as_op())
+                        else
+                            op1:push(top:new{ '!do', _else:as_op() })
+                        end
                     end
                     ops:push(op1)
                 elseif op == 'while' or op == 'until' then
@@ -901,24 +916,37 @@ how.add_method(op, 'as_op', function (self, want)
                         ops:push(top:new{ '!line', lineno })
                     end
                     local expr = assert(self[1])
-                    local stmts = assert(self[2])
+                    local blk = assert(self[2])
                     local op1 = top:new{ '!while' }
                     if op == 'while' then
                         op1:push(expr:as_op'bool')
                     else
                         op1:push(top:new{ '!not', expr:as_op'bool' })
                     end
-                    op1:push(stmts:as_op(options))
+                    op1:push(blk:as_op(options))
                     ops:push(op1)
                 elseif op == 'for' then
                     if lineno then
                         ops:push(top:new{ '!line', lineno })
                     end
                     local expr = assert(self[1])
-                    local stmts = assert(self[2])
-                    local op1 = top:new{ '!for', top:new{ '_', '$_' },
-                                                 top:new{ top:new{ '!callmeth', expr:as_op(options), '_iter1' } },
-                                                 stmts:as_op(options) }
+                    local blk = assert(self[2])
+                    local params = blk[1]
+                    local lex = top:new{ '_' }
+                    local iter
+                    if #params == 0 then
+                        lex:push'$_'
+                        iter = '_iter1'
+                    else
+                        for i = 1, #params do
+                            local p = params[i]
+                            lex:push(p:name())
+                        end
+                        iter = (#params <= 2) and ('_iter' .. #params) or '_itern'
+                    end
+                    local op1 = top:new{ '!for', lex,
+                                                 top:new{ top:new{ '!callmeth', expr:as_op(options), iter } },
+                                                 blk[2]:as_op(options) }
                     ops:push(op1)
                 elseif op == 'list' then
                     local args = top:new{}
@@ -928,7 +956,11 @@ how.add_method(op, 'as_op', function (self, want)
                     local op1 = top:new{ '!callmeth', top:new{ '!index', '_P6PKG', quote'Array' } , 'new', top:new{ args } }
                     ops:push(op1)
                 elseif op == 'hash' then
-                    local op1 = top:new{ '!callmeth', top:new{ '!index', '_P6PKG', quote'Hash' } , 'new', top:new{ top:new{} } }
+                    local args = top:new{}
+                    for i = 1, #self, 2 do
+                        args:addkv(self[i]:as_op(), self[i+1]:as_op())
+                    end
+                    local op1 = top:new{ '!callmeth', top:new{ '!index', '_P6PKG', quote'Hash' } , 'new', top:new{ args } }
                     ops:push(op1)
                 elseif op == 'return' then
                     if lineno then
@@ -938,6 +970,16 @@ how.add_method(op, 'as_op', function (self, want)
                     for i = 1, #self do
                         op1:push(self[i]:as_op())
                     end
+                    ops:push(op1)
+                elseif op == 'let' then
+                    if lineno then
+                        ops:push(top:new{ '!line', lineno })
+                    end
+                    local expr1 = assert(self[1])
+                    expr1:reset'lineno'
+                    local expr2 = assert(self[2])
+                    expr2:reset'lineno'
+                    local op1 = top:new{ '!let', expr1:as_op(), expr2:as_op() }
                     ops:push(op1)
                 elseif op == 'op' then
                     local expr1 = assert(self[1])
@@ -1102,7 +1144,7 @@ how.add_method(op, 'as_op', function (self, want)
                             ops:push(expr1:as_op())
                             expr1:reset'decl'
                         end
-                        op1 = top:new{ '!assign', expr1:as_op(), expr2 and expr2:as_op'Box' or '!nil' }
+                        op1 = top:new{ '!assign', expr1:as_op(), expr2:isa(_G['TVM::AST::Var']) and expr2:as_op() or expr2:as_op'Box' }
                     else
                         error("op with name=" .. name)
                     end
@@ -1180,7 +1222,7 @@ how.add_method(var, 'as_op', function (self, want)
                     elseif scope == 'attribute' then
                         op1 = top:new{ '!index', top:new{ '!index', 'self', quote'_VALUES' }, quote(assert(self:name())) }
                     elseif scope == 'package' then
-                        op1 = top:new{ '!index', '_PKG', quote(assert(self:name())) }
+                        op1 = top:new{ '!index', '_P6PKG', quote(assert(self:name())) }
                     elseif scope == 'lexical' then
                         op1 = assert(self:name())
                     else
@@ -1197,6 +1239,7 @@ do -- Parser
 
 local _G = _G
 local error = error
+local quote = tvm.quote
 local peg = require 'lpeg'
 local locale = peg.locale()
 local C = peg.C
@@ -1231,6 +1274,7 @@ local capt_identifier = C(identifier) * Cp()
 local sigil = S'$@%&'
 local twigil = S'*!?'
 local name = identifier
+local capt_name = C(name) * Cp()
 local variable = sigil * twigil^-1 * name
 local capt_variable = C(variable) * Cp()
 local capt_funcname = P'&'^-1 * C(name) * Cp()
@@ -1279,7 +1323,6 @@ local capt_number = number * Cp()
 
 local tok_string; do
     local char = string.char
-    local quote = tvm.quote
     local tonumber = tonumber
 
     local function gsub (patt, repl)
@@ -1338,7 +1381,6 @@ end
 local capt_string = tok_string * Cp()
 
 local tok_angle; do
-    local quote = tvm.quote
     local ch_angle = P(1) - P'>'
     tok_angle = ((P'<' * Cs(ch_angle^0) * P'>') / quote)
 end
@@ -1347,8 +1389,16 @@ local capt_angle = tok_angle * Cp()
 local tok_q = P'q' * S' \t'^0 * tok_angle
 local capt_q = tok_q * Cp()
 
+local tok_class = P'class' * not_ch_ident
+local capt_class = C(tok_class) * Cp()
+local tok_does = P'does' * not_ch_ident
+local capt_does = C(tok_does) * Cp()
+local tok_has = P'has' * not_ch_ident
+local capt_has = C(tok_has) * Cp()
 local tok_if = P'if' * not_ch_ident
 local capt_if = C(tok_if) * Cp()
+local tok_is = P'is' * not_ch_ident
+local capt_is = C(tok_is) * Cp()
 local tok_else = P'else' * not_ch_ident
 local capt_else = C(tok_else) * Cp()
 local tok_elsif = P'elsif' * not_ch_ident
@@ -1357,12 +1407,16 @@ local tok_for = P'for' * not_ch_ident
 local capt_for = C(tok_for) * Cp()
 local tok_method = P'method' * not_ch_ident
 local capt_method = C(tok_method) * Cp()
+local tok_module = P'module' * not_ch_ident
+local capt_module = C(tok_module) * Cp()
 local tok_my = P'my' * not_ch_ident
 local capt_my = C(tok_my) * Cp()
 local tok_our = P'our' * not_ch_ident
 local capt_our = C(tok_our) * Cp()
 local tok_return = P'return' * not_ch_ident
 local capt_return = C(tok_return) * Cp()
+local tok_role = P'role' * not_ch_ident
+local capt_role = C(tok_role) * Cp()
 local tok_sub = P'sub' * not_ch_ident
 local capt_sub = C(tok_sub) * Cp()
 local tok_unless = P'unless' * not_ch_ident
@@ -1391,12 +1445,16 @@ local tok_semicolon = P';'
 local capt_semicolon = C(tok_semicolon) * Cp()
 local tok_colon = P':'
 local capt_colon = C(tok_colon) * Cp()
+local tok_dot = P'.'
+local capt_dot = C(tok_dot) * Cp()
+local tok_arrow = P'->'
+local capt_arrow = C(tok_arrow) * Cp()
 
 local postfix = P'++' + P'--'
 local capt_postfix = C(postfix) * Cp()
 local prefix = P'++' + P'--' + P'+' + P'~' + P'-' + P'?' + P'!' + P'|'
 local capt_prefix = C(prefix) * Cp()
-local infix = P'**' + P'*' + P'/' + P'%' + P'+&' + P'+|' + P'+^' + P'+' + P'-' + P'~'
+local infix = P'**' + P'*' + P'/' + P'%' + P'+&' + P'+|' + P'+^' + P'+' + (P'-'*-P'>') + P'~'
              + P'==' + P'!=' + P'<=' + P'<' + P'>=' + P'>' + P'eq' + P'ne' + P'le' + P'ge' + P'lt' + P'gt' + P'=:='
              + P'&&' + P'||' + P'//' + P':=' + P'::=' + P'='
 local capt_infix = C(infix) * Cp()
@@ -1602,6 +1660,11 @@ how.add_method(parser, 'primaryexpr', function (self)
                     end
                     syntaxerror "variable expected"
                 end
+                local capt, posn = capt_has:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:attributedef()
+                end
                 local capt, posn = capt_sub:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
@@ -1611,6 +1674,21 @@ how.add_method(parser, 'primaryexpr', function (self)
                 if posn then
                     self:skip_ws(posn)
                     return self:methoddef()
+                end
+                local capt, posn = capt_class:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:classdef()
+                end
+                local capt, posn = capt_role:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:roledef()
+                end
+                local capt, posn = capt_module:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    return self:moduledef()
                 end
                 capt, posn = capt_left_paren:match(self:src(), self:pos())
                 if posn then
@@ -1665,6 +1743,23 @@ how.add_method(parser, 'suffixedexpr', function (self)
                             op = Op:new{ lineno=lineno, op='call', op }
                         end
                         self:funcargs(op)
+                    elseif tok_dot:match(self:src(), self:pos()) then
+                        local capt, posn = capt_dot:match(self:src(), self:pos())
+                        self:pos(posn)
+                        local capt, posn = capt_name:match(self:src(), self:pos())
+                        if posn then
+                            self:pos(posn)
+                            if type(op) == 'string' then
+                                local scope = assert(self:scope()[op])
+                                op = Var:new{ scope=scope, name=op }
+                            end
+                            op = Op:new{ lineno=lineno, op='callmeth', name=capt, op }
+                            if tok_left_paren:match(self:src(), self:pos()) then
+                                self:funcargs(op)
+                            end
+                        else
+                            syntaxerror "methname expected"
+                        end
                     else
                         return op
                     end
@@ -1768,22 +1863,28 @@ how.add_method(parser, 'parameter', function (self)
 
 
 how.add_method(parser, 'signature', function (self)
+                local sig = Stmts:new{}
+                sig:push(self:parameter())
+                local capt, posn = capt_comma:match(self:src(), self:pos())
+                while posn do
+                    self:skip_ws(posn)
+                    sig:push(self:parameter())
+                    capt, posn = capt_comma:match(self:src(), self:pos())
+                end
+                return sig
+                end)
+
+
+how.add_method(parser, 'callsignature', function (self)
                 local capt, posn = capt_left_paren:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    local sig = Stmts:new{}
                     capt, posn = capt_right_paren:match(self:src(), self:pos())
                     if posn then
                         self:skip_ws(posn)
-                        return sig
+                        return Stmts:new{}
                     end
-                    sig:push(self:parameter())
-                    capt, posn = capt_comma:match(self:src(), self:pos())
-                    while posn do
-                        self:skip_ws(posn)
-                        sig:push(self:parameter())
-                        capt, posn = capt_comma:match(self:src(), self:pos())
-                    end
+                    local sig = self:signature()
                     capt, posn = capt_right_paren:match(self:src(), self:pos())
                     if posn then
                         self:skip_ws(posn)
@@ -1801,12 +1902,139 @@ how.add_method(parser, 'routinedef', function (self)
                 if posn then
                     self:skip_ws(posn)
                     local name = '&' .. capt
-                    local bl = Block:new{ blocktype='routine', self:signature(), self:pblock() }
+                    local bl = Block:new{ blocktype='routine', self:callsignature(), self:block() }
                     self:scope()[name] = 'lexical'
                     self:init():push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', Var:new{ name=name, scope='lexical', decl=true }, bl })
                     return Var:new{ name=name, scope='lexical' }
                 end
                 syntaxerror "funcname expected"
+                end)
+
+
+how.add_method(parser, 'methoddef', function (self)
+                local lineno = lineno
+                local capt, posn = capt_name:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    self:scope()['self'] = 'lexical'
+                    local bl = Block:new{ blocktype='method', self:callsignature(), self:block() }
+                    local pkg = Var:new{ scope='lexical', name='_PKG' }
+                    local how = Op:new{ op='callmeth', name='WHAT', pkg }
+                    local add_method = Var:new{ scope='associative', how, SVal:new{ value=quote'add_method' } }
+                    self:init():push(Op:new{ lineno=lineno, op='call', add_method, pkg, SVal:new{ value=quote(capt) }, bl })
+                    return pkg
+                end
+                syntaxerror "methname expected"
+                end)
+
+
+how.add_method(parser, 'attributedef', function (self)
+                local lineno = lineno
+                local capt, posn = capt_variable:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    self:scope()[capt] = 'attribute'
+                    local pkg = Var:new{ scope='lexical', name='_PKG' }
+                    local how = Op:new{ op='callmeth', name='WHAT', pkg }
+                    local add_attribute = Var:new{ scope='associative', how, SVal:new{ value=quote'add_attribute' } }
+                    local attr = Op:new{ op='hash', SVal:new{ value='name' }, SVal:new{ value=quote(capt) } }
+                    self:init():push(Op:new{ lineno=lineno, op='call', add_attribute, pkg, attr })
+                    return pkg
+                end
+                syntaxerror "attrname expected"
+                end)
+
+
+how.add_method(parser, 'classdef', function (self)
+                local lineno = lineno
+                local capt, posn = capt_name:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    self:scope()[capt] = 'package'
+                    local init = self:init()
+                    local p6pkg = Var:new{ scope='lexical', name='_P6PKG' }
+                    local p6class = Var:new{ scope='lexical', name='p6class' }
+                    init:push(Op:new{ lineno=lineno, op='let', p6class, Var:new{ scope='associative', p6pkg, SVal:new{ value=quote'NQP::Metamodel::ClassHOW' } } })
+                    local pkg = Var:new{ scope='lexical', name='_PKG' }
+                    local class = Op:new{ op='callmeth', name='new', p6class, SVal:new{ value=quote(capt) } }
+                    init:push(Op:new{ lineno=lineno, op='let', pkg, class })
+                    init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', Var:new{ scope='associative', p6pkg, SVal:new{ value=quote(capt) } }, pkg })
+                    local add_parent = Var:new{ scope='associative', p6class, SVal:new{ value=quote'add_parent' } }
+                    local add_role = Var:new{ scope='associative', p6class, SVal:new{ value=quote'add_role' } }
+                    while tok_is:match(self:src(), self:pos()) or tok_does:match(self:src(), self:pos()) do
+                        local capt, posn = capt_is:match(self:src(), self:pos())
+                        if posn then
+                            self:skip_ws(posn)
+                            capt, posn = capt_name:match(self:src(), self:pos())
+                            if posn then
+                                self:skip_ws(posn)
+                                local parent = Var:new{ scope='associative', p6pkg, SVal:new{ value=quote(capt) } }
+                                init:push(Op:new{ lineno=lineno, op='call', add_parent, pkg, parent })
+                            else
+                                syntaxerror "classname expected"
+                            end
+                        end
+                        capt, posn = capt_does:match(self:src(), self:pos())
+                        if posn then
+                            self:skip_ws(posn)
+                            capt, posn = capt_name:match(self:src(), self:pos())
+                            if posn then
+                                self:skip_ws(posn)
+                                local role = Var:new{ scope='associative', p6pkg, SVal:new{ value=quote(capt) } }
+                                init:push(Op:new{ lineno=lineno, op='call', add_role, pkg, role })
+                            else
+                                syntaxerror "classname expected"
+                            end
+                        end
+                    end
+                    local any = Var:new{ scope='associative', p6pkg, SVal:new{ value=quote'Any' } }
+                    init:push(Op:new{ lineno=lineno, op='call', add_parent, pkg, any })
+                    self:block()
+                    return pkg
+                end
+                syntaxerror "classname expected"
+                end)
+
+
+how.add_method(parser, 'roledef', function (self)
+                local lineno = lineno
+                local capt, posn = capt_funcname:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    self:scope()[capt] = 'package'
+                    local init = self:init()
+                    local p6pkg = Var:new{ scope='lexical', name='_P6PKG' }
+                    local p6role = Var:new{ scope='lexical', name='p6role' }
+                    init:push(Op:new{ lineno=lineno, op='let', p6role, Var:new{ scope='associative', p6pkg, SVal:new{ value=quote'NQP::Metamodel::RoleHOW' } } })
+                    local pkg = Var:new{ scope='lexical', name='_PKG' }
+                    local role = Op:new{ op='callmeth', name='new', p6role, SVal:new{ value=quote(capt) } }
+                    init:push(Op:new{ lineno=lineno, op='let', pkg, role })
+                    init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', Var:new{ scope='associative', p6pkg, SVal:new{ value=quote(capt) } }, pkg })
+                    self:block()
+                    return pkg
+                end
+                syntaxerror "rolename expected"
+                end)
+
+
+how.add_method(parser, 'moduledef', function (self)
+                local lineno = lineno
+                local capt, posn = capt_funcname:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    self:scope()[capt] = 'package'
+                    local init = self:init()
+                    local p6pkg = Var:new{ scope='lexical', name='_P6PKG' }
+                    local p6module = Var:new{ scope='lexical', name='p6module' }
+                    init:push(Op:new{ lineno=lineno, op='let', p6role, Var:new{ scope='associative', p6pkg, SVal:new{ value=quote'NQP::Metamodel::ModuleHOW' } } })
+                    local pkg = Var:new{ scope='lexical', name='_PKG' }
+                    local module = Op:new{ op='callmeth', name='new', p6module, SVal:new{ value=quote(capt) } }
+                    init:push(Op:new{ lineno=lineno, op='let', pkg, module })
+                    init:push(Op:new{ lineno=lineno, op='op', name='&infix:<:=>', Var:new{ scope='associative', p6pkg, SVal:new{ value=quote(capt) } }, pkg })
+                    self:block()
+                    return pkg
+                end
+                syntaxerror "modname expected"
                 end)
 
 
@@ -1825,25 +2053,32 @@ how.add_method(parser, 'block', function (self)
                     if posn then
                         self:skip_ws(posn)
                     end
-                    return Block:new{ lineno=lineno, ast }
+                    return Block:new{ lineno=lineno, blocktype='immediate', Stmts:new{}, ast }
                 end
                 syntaxerror "Missing block"
                 end)
 
 
 how.add_method(parser, 'pblock', function (self)
-                local capt, posn = capt_left_curly:match(self:src(), self:pos())
+                local sig
+                local capt, posn = capt_arrow:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
---                    local lineno =lineno
+                    print('signature')
+                    sig = self:signature()
+                    print(sig:dump())
+                end
+                capt, posn = capt_left_curly:match(self:src(), self:pos())
+                if posn then
+                    self:skip_ws(posn)
+                    local lineno =lineno
                     local ast = self:statlist()
                     capt, posn = capt_right_curly:match(self:src(), self:pos())
                     if not posn then
                         syntaxerror "} expected"
                     end
                     self:skip_ws(posn)
---                    return Block:new{ lineno=lineno, ast }
-                    return ast
+                    return Block:new{ lineno=lineno, blocktype='immediate', sig or Stmts:new{}, ast }
                 end
                 syntaxerror "Missing block"
                 end)
@@ -1914,12 +2149,12 @@ how.add_method(parser, 'statement_mod_cond', function (self, ast)
                 local capt, posn = capt_if:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    return Op:new{ lineno=lineno, op='if', self:expr(), ast }
+                    return Op:new{ lineno=lineno, op='if', self:expr(), Block:new{ blocktype='immediate', Stmts:new{}, ast } }
                 end
                 capt, posn = capt_unless:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    return Op:new{ lineno=lineno, op='unless', self:expr(), ast }
+                    return Op:new{ lineno=lineno, op='unless', self:expr(), Block:new{ blocktype='immediate', Stmts:new{}, ast } }
                 end
                 return ast
                 end)
@@ -1929,17 +2164,17 @@ how.add_method(parser, 'statement_mod_loop', function (self, ast)
                 local capt, posn = capt_while:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    return Op:new{ lineno=lineno, op='while', self:expr(), ast }
+                    return Op:new{ lineno=lineno, op='while', self:expr(), Block:new{ blocktype='immediate', Stmts:new{}, ast } }
                 end
                 capt, posn = capt_until:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    return Op:new{ lineno=lineno, op='until', self:expr(), ast }
+                    return Op:new{ lineno=lineno, op='until', self:expr(), Block:new{ blocktype='immediate', Stmts:new{}, ast } }
                 end
                 capt, posn = capt_for:match(self:src(), self:pos())
                 if posn then
                     self:skip_ws(posn)
-                    return Op:new{ lineno=lineno, op='for', self:expr(), ast }
+                    return Op:new{ lineno=lineno, op='for', self:expr(), Block:new{ blocktype='immediate', Stmts:new{}, ast } }
                 end
                 return ast
                 end)
@@ -2096,7 +2331,8 @@ local prelude = [[
 (!call (!index p6class "add_method") (p6class "str" (!lambda (meta)
                 (!return (!index (!index meta "_VALUES") "name")))))
 (!call (!index p6class "add_method") (p6class "add_attribute" (!lambda (a)
-                (!let (meta attr) ((!call unpack a)))
+                (!define (meta attr) ((!call unpack a)))
+                (!assign attr (!or (!index attr "_VALUES") attr))
                 (!let name (!index attr "name"))
                 (!call checktype "add_attribute" "name" name "string")
                 (!let attributes (!index (!index meta "_VALUES") "attributes"))
@@ -2202,7 +2438,8 @@ local prelude = [[
                      (!call error (!concat "This role already has a method named " name)))
                 (!assign (!index methods name) func))))
 (!call (!index p6class "add_method") (p6role "add_attribute" (!lambda (a)
-                (!let (meta attr) ((!call unpack a)))
+                (!define (meta attr) ((!call unpack a)))
+                (!assign attr (!or (!index attr "_VALUES") attr))
                 (!let name (!index attr "name"))
                 (!call checktype "add_attribute" "name" name "string")
                 (!let attributes (!index (!index meta "_VALUES") "attributes"))
@@ -2391,13 +2628,7 @@ local prelude = [[
 (!let len (!index string "len"))
 (!let quote (!index tvm "quote"))
 (!assign (!index (!index p6str "_VALUES") "mt") (
-        "__index": (!index (!index p6str "_VALUES") "proto")
-        "__lt": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!lt o1 o2)))
-        "__le": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!le o1 o2))) ))
+        "__index": (!index (!index p6str "_VALUES") "proto") ))
 (!call (!index debug "setmetatable") "" (!index (!index p6str "_VALUES") "mt"))
 (!assign (!index _P6PKG "str") p6str)
 (!call (!index p6class "add_parent") (p6str p6cool))
@@ -2487,13 +2718,7 @@ local prelude = [[
 (!do
 (!let floor (!index math "floor"))
 (!assign (!index (!index p6num "_VALUES") "mt") (
-        "__index": (!index (!index p6num "_VALUES") "proto")
-        "__lt": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!lt o1 o2)))
-        "__le": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!le o1 o2))) ))
+        "__index": (!index (!index p6num "_VALUES") "proto") ))
 (!call (!index debug "setmetatable") 0 (!index (!index p6num "_VALUES") "mt"))
 (!assign (!index _P6PKG "num") p6num)
 (!call (!index p6class "add_parent") (p6num p6cool))
@@ -2532,12 +2757,6 @@ local prelude = [[
 (!call (!index p6class "add_parent") (p6str p6cool))
 (!assign (!index (!index p6str "_VALUES") "mt") (
         "__index": (!index (!index p6str "_VALUES") "proto")
-        "__lt": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!lt (!index o1 "_VALUES") o2)))
-        "__le": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!le (!index o1 "_VALUES") o2)))
         "__tostring": (!lambda (o)
                         (!return (!index o "_VALUES"))) ))
 (!call (!index p6class "add_method") (p6str "new" (!lambda (class a)
@@ -2632,12 +2851,6 @@ local prelude = [[
 (!call (!index p6class "add_parent") (p6num p6cool))
 (!assign (!index (!index p6num "_VALUES") "mt") (
         "__index": (!index (!index p6num "_VALUES") "proto")
-        "__lt": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!lt (!index o1 "_VALUES") o2)))
-        "__le": (!lambda (o1 o2)
-                        (!assign o2 (!or (!and (!eq (!call1 type o2) "table") (!index o2 "_VALUES")) o2))
-                        (!return (!le (!index o1 "_VALUES") o2)))
         "__tostring": (!lambda (o)
                         (!return (!call tostring (!index o "_VALUES")))) ))
 (!call (!index p6class "add_method") (p6num "new" (!lambda (class a)
@@ -3022,7 +3235,7 @@ how.add_method(parser, 'parse', function (self, s, fname)
                 self:src(s)
                 self:pos((bom * Cp()):match(self:src(), 1) or 1)
                 self:init(Stmts:new{})
-                local block = Block:new{ self:init(), self:statlist() }
+                local block = Block:new{ blocktype='immediate', self:init(), self:statlist() }
                 local unit = CompUnit:new{ filename=fname, prelude=prelude, termination=nil; block }
                 if not P(-1):match(self:src(), self:pos()) then
                     syntaxerror("<eof> expected at " .. self:pos())
