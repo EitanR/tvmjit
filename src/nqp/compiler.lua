@@ -968,7 +968,9 @@ how.add_method(op, 'as_op', function (self, want)
                     end
                     local op1 = top:new{ '!return' }
                     for i = 1, #self do
-                        op1:push(self[i]:as_op())
+                        local v = self[i]
+                        v:reset'lineno'
+                        op1:push(v:as_op())
                     end
                     ops:push(op1)
                 elseif op == 'let' then
@@ -1720,7 +1722,7 @@ how.add_method(parser, 'primaryexpr', function (self)
 
 how.add_method(parser, 'suffixedexpr', function (self)
                 -- suffixedexp ->
-                --    primaryexp { `.' NAME | `[' exp `]' | `:' NAME funcargs | funcargs }
+                --    primaryexp { `{' exp `}' | `[' exp `]' | `.' NAME funcargs | funcargs }
                 local op = self:primaryexpr()
                 local capt, posn = capt_postfix:match(self:src(), self:pos())
                 if posn then
