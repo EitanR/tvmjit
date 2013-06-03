@@ -64,7 +64,7 @@
 
 (!call error_contains (!lambda ()
                                 (!let a ("x":1 "y":2 (3 4 5)))
-                                (!assign (!index a "z") (!index a 0))
+                                (!assign (!index a "z") (!index a 1))
                                 (!call dump a))
                       ": cycle detected"
                       "shared subtable" )

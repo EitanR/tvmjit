@@ -24,27 +24,27 @@
 
 (!call plan 39)
 
-(!define t (!nil "a" "b" "c" "d" "e"))
+(!define t ("a" "b" "c" "d" "e"))
 (!call is (!call concat t) "abcde" "function concat")
 (!call is (!call concat t ",") "a,b,c,d,e")
 (!call is (!call concat t "," 2) "b,c,d,e")
 (!call is (!call concat t "," 2 4) "b,c,d")
 (!call is (!call concat t "," 4 2) "")
 
-(!define t (!nil "a" "b" 3 "d" "e"))
+(!define t ("a" "b" 3 "d" "e"))
 (!call is (!call concat t ",") "a,b,3,d,e" "function concat (number)")
 
-(!define t (!nil "a" "b" "c" "d" "e"))
+(!define t ("a" "b" "c" "d" "e"))
 (!call error_contains (!lambda () (!call concat t "," 2 7))
                       ": invalid value (nil) at index 6 in table for 'concat'"
                       "function concat (out of range)")
 
-(!define t (!nil "a" "b" !true "d" "e"))
+(!define t ("a" "b" !true "d" "e"))
 (!call error_contains (!lambda () (!call concat t ","))
                       ": invalid value (boolean) at index 3 in table for 'concat'"
                       "function concat (non-string)")
 
-(!define a (!nil 10 20 30))
+(!define a (10 20 30))
 (!call insert a 1 15)
 (!call is (!call concat a ",") "15,10,20,30" "function insert")
 (!define t ())
@@ -66,7 +66,7 @@
                       "function insert (too many arg)")
 
 (!define t (!call pack "abc" "def" "ghi"))
-(!call eq_array t (!nil "abc" "def" "ghi") "function pack")
+(!call eq_array t ("abc" "def" "ghi") "function pack")
 (!call is (!index t "n") 3)
 
 (!define t (!call pack))
@@ -76,7 +76,7 @@
 (!define t ())
 (!define a (!call remove t))
 (!call is a !nil "function remove (no element)")
-(!define t (!nil "a" "b" "c" "d" "e"))
+(!define t ("a" "b" "c" "d" "e"))
 (!define a (!call remove t))
 (!call is a "e" "function remove")
 (!call is (!call concat t ",") "a,b,c,d")
@@ -94,17 +94,17 @@
                 "luaH_get": 24
                 "luaH_present": 48))
 (!define a ())
-(!for (k) ((!call pairs lines)) (!assign (!index a (!add (!len1 a) 1)) k))
+(!for (k) ((!call pairs lines)) (!assign (!index a (!add (!len a) 1)) k))
 (!call sort a)
 (!define output ())
 (!loop i 1 (!len a) 1
       (!call insert output (!index a i)))
-(!call eq_array output (!nil "luaH_get" "luaH_present" "luaH_set") "function sort")
+(!call eq_array output ("luaH_get" "luaH_present" "luaH_set") "function sort")
 
 (!define pairsByKeys (!lambda (t f)
                 (!define a ())
                 (!for (n) ((!call pairs t))
-                      (!assign (!index a (!add (!len1 a) 1)) n))
+                      (!assign (!index a (!add (!len a) 1)) n))
                 (!call sort a f)
                 (!define i 0)          ; iterator variable
                 (!return (!lambda ()    ; iterator function
@@ -115,24 +115,24 @@
 (!for (name line) ((!call pairsByKeys lines))
       (!call insert output name)
       (!call insert output line))
-(!call eq_array output (!nil "luaH_get" 24 "luaH_present" 48 "luaH_set" 10) "function sort")
+(!call eq_array output ("luaH_get" 24 "luaH_present" 48 "luaH_set" 10) "function sort")
 
 (!define output ())
 (!for (name line) ((!call pairsByKeys lines (!lambda (a b) (!return (!lt a b)))))
       (!call insert output name)
       (!call insert output line))
-(!call eq_array output (!nil "luaH_get" 24 "luaH_present" 48 "luaH_set" 10) "function sort")
+(!call eq_array output ("luaH_get" 24 "luaH_present" 48 "luaH_set" 10) "function sort")
 
 (!call error_contains (!lambda ()
-                (!define t (!nil 1))
-                (!call sort (!nil t t t t) (!lambda (a b) (!return (!eq (!index a 1)(!index b 1))))))
+                (!define t (1))
+                (!call sort (t t t t) (!lambda (a b) (!return (!eq (!index a 1)(!index b 1))))))
                       ": invalid order function for sorting"
                       "function sort (bad func)")
 
 (!call eq_array ((!call unpack ())) () "function unpack")
-(!call eq_array ((!call unpack (!nil "a"))) ("a"))
-(!call eq_array ((!call unpack (!nil "a" "b" "c"))) ("a" "b" "c"))
-(!call eq_array ((!call1 unpack (!nil "a" "b" "c"))) ("a"))
-(!call eq_array ((!call unpack (!nil "a" "b" "c" "d" "e") 2 4)) ("b" "c" "d"))
-(!call eq_array ((!call unpack (!nil "a" "b" "c") 2 4)) ("b" "c"))
+(!call eq_array ((!call unpack ("a"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c"))) ("a" "b" "c"))
+(!call eq_array ((!call1 unpack ("a" "b" "c"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c" "d" "e") 2 4)) ("b" "c" "d"))
+(!call eq_array ((!call unpack ("a" "b" "c") 2 4)) ("b" "c"))
 

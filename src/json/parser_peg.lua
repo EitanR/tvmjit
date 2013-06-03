@@ -135,22 +135,9 @@ local g = P {
     ws              = S" \t\n\r"^0,
 }
 
-local function table0 (t)
-    for k, v in pairs(t) do
-        if type(v) == 'table' then
-            t[k] = table0(v)
-        end
-    end
-    for i = 1, #t do
-        t[i-1] = t[i]
-        t[i] = nil
-    end
-    return t
-end
-
 return {
     parse = function (s)
-                return table0(g:match(s))
+                return g:match(s)
             end
 }
 

@@ -17,7 +17,7 @@
 
 ;   list-style init
 (!define days ("Sunday" "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday"))
-(!call is (!index days 3) "Wednesday" "list-style init")
+(!call is (!index days 4) "Wednesday" "list-style init")
 (!call is (!len days) 7)
 
 ;   record-style init

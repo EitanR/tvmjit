@@ -328,10 +328,10 @@ local function recfield (s, pos, buffer)
 end
 
 
+
 local function listfield (s, pos, buffer, list)
     -- listfield -> exp
     if #list == 0 then
-        buffer[#buffer+1] = '!nil '
         list[1] = true
     end
     return expr(s, pos, buffer)
@@ -628,7 +628,7 @@ end
 local unop = {
     ['not']   = '(!not ',
     ['-']     = '(!neg ',
-    ['#']     = '(!len1 ',
+    ['#']     = '(!len ',
 }
 local binop = {
     ['+']     = '(!add ',

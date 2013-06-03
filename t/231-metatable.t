@@ -249,7 +249,7 @@
 (!call is a "Cplx.__call (2,0)")
 
 (!assign (!index (!index Cplx "mt") "__call") (!lambda (obj !vararg)
-                (!assign a (!mconcat "Cplx.__call " (!call tostring obj) ", " (!call tconcat (!nil !vararg) ", ")))
+                (!assign a (!mconcat "Cplx.__call " (!call tostring obj) ", " (!call tconcat (!vararg) ", ")))
                 (!return !true)))
 
 (!call is (!call c1) !true "cplx __call (with args)")
@@ -270,7 +270,7 @@
 
 (!define r ())
 (!for (k) ((!call pairs t))
-      (!assign (!index r (!add (!len1 r) 1)) k))
+      (!assign (!index r (!add (!len r) 1)) k))
 (!call tsort r)
 (!call is (!call tconcat r ",") "a,b,c" "__pairs" )
 
@@ -405,7 +405,7 @@
 
 (!define days (!call readOnly ("Sunday" "Monday" "Tuesday" "Wednesday" "Thurday" "Friday" "Saturday")))
 
-(!call is (!index days 0) "Sunday" "read-only tables")
+(!call is (!index days 1) "Sunday" "read-only tables")
 
 (!call error_contains (!lambda () (!assign (!index days 2) "Noday"))
                       ": attempt to update a read-only table")

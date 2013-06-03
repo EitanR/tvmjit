@@ -641,11 +641,14 @@ how.add_method(op, 'new', function (class, args)
 how.add_method(op, 'str', function (self)
                 local t = {}
                 local values = self._VALUES
+                if values[0] then
+                    t[1] = '0: ' .. values[0]:str()
+                end
                 for i = 1, #values do
                     t[#t+1] = values[i]:str()
                 end
                 for k, v in pairs(values) do
-                    if type(k) ~= 'number' then
+                    if type(k) ~= 'number' or k < 0 or k > #values then
                         t[#t+1] = k:perl() .. ': ' .. v:str()
                     end
                 end
@@ -934,6 +937,7 @@ how.add_method(op, 'as_op', function (self, want)
                     local params = blk[1]
                     local lex = top:new{ '_' }
                     local iter
+                    local n
                     if #params == 0 then
                         lex:push'$_'
                         iter = '_iter1'
@@ -942,16 +946,24 @@ how.add_method(op, 'as_op', function (self, want)
                             local p = params[i]
                             lex:push(p:name())
                         end
-                        iter = (#params <= 2) and ('_iter' .. #params) or '_itern'
+                        if #params <= 2 then
+                            iter = '_iter' .. #params
+                        else
+                            iter = '_itern'
+                            n = top:new{ #params }
+                        end
                     end
                     local op1 = top:new{ '!for', lex,
-                                                 top:new{ top:new{ '!callmeth', expr:as_op(options), iter } },
+                                                 top:new{ top:new{ '!callmeth', expr:as_op(options), iter, n } },
                                                  blk[2]:as_op(options) }
                     ops:push(op1)
                 elseif op == 'list' then
-                    local args = top:new{}
-                    for i = 1, #self do
-                        args:push(self[i]:as_op())
+                    local args = top:new{ n=#self }
+                    if #self >= 1 then
+                        args:addkv(0, self[1]:as_op())
+                        for i = 2, #self do
+                            args:push(self[i]:as_op())
+                        end
                     end
                     local op1 = top:new{ '!callmeth', top:new{ '!index', '_P6PKG', quote'Array' } , 'new', top:new{ args } }
                     ops:push(op1)
@@ -2254,11 +2266,11 @@ local prelude = [[
 (!let rawget rawget)
 (!let rawset rawset)
 (!let setmetatable setmetatable)
-(!let tconcat (!index tvm "concat"))
+(!let tconcat (!index table "concat"))
 (!let tonumber tonumber)
 (!let tostring tostring)
 (!let type type)
-(!let unpack (!index tvm "unpack"))
+(!let unpack (!index table "unpack"))
 (!let _G _G)
 (!assign (!index _G "_P6PKG") ())
 
@@ -2284,7 +2296,7 @@ local prelude = [[
                                        (!assign val (!call1 val obj)))
                                   (!assign (!index (!index obj "_VALUES") k) val))))
                 (!let parents (!index (!index class "_VALUES") "parents"))
-                (!loop i 0 (!sub (!len parents) 1) 1
+                (!loop i 0 (!sub (!index parents "n") 1) 1
                         (!call Mu_INIT obj (!index parents i) args))))
 
 (!let Mu_BUILD (!lambda (class args)
@@ -2311,9 +2323,9 @@ local prelude = [[
                 "proto": proto
                 "attributes": ()
                 "methods": ("add_method": class_add_method)
-                "parents": ()
-                "roles": ()
-                "ISA": (p6class) ) ))
+                "parents": ("n": 0)
+                "roles": ("n": 0)
+                "ISA": (0: p6class "n": 1) ) ))
         (!assign (!index p6class "_CLASS") p6class)
         (!call setmetatable p6class (
                 "__index": (!index (!index p6class "_VALUES") "proto")
@@ -2348,19 +2360,21 @@ local prelude = [[
 (!call (!index p6class "add_attribute") (p6class ("name": "proto" "default": (!lambda () (!return ())))))
 (!call (!index p6class "add_attribute") (p6class ("name": "methods" "default": (!lambda () (!return ())))))
 (!call (!index p6class "add_attribute") (p6class ("name": "attributes" "default": (!lambda () (!return ())))))
-(!call (!index p6class "add_attribute") (p6class ("name": "parents" "default": (!lambda () (!return ())))))
-(!call (!index p6class "add_attribute") (p6class ("name": "roles" "default": (!lambda () (!return ())))))
-(!call (!index p6class "add_attribute") (p6class ("name": "ISA" "default": (!lambda (self) (!return (self))))))
+(!call (!index p6class "add_attribute") (p6class ("name": "parents" "default": (!lambda () (!return ("n": 0))))))
+(!call (!index p6class "add_attribute") (p6class ("name": "roles" "default": (!lambda () (!return ("n": 0))))))
+(!call (!index p6class "add_attribute") (p6class ("name": "ISA" "default": (!lambda (self) (!return (0: self "n": 1))))))
 (!call (!index p6class "add_attribute") (p6class ("name": "mt")))
 (!call (!index p6class "add_method") (p6class "HOW" (!lambda (meta)
                 (!return (!index (!index p6class "_VALUES") "proto")))))
 (!call (!index p6class "add_method") (p6class "add_role" (!lambda (a)
                 (!let (meta role) ((!call unpack a)))
                 (!let roles (!index (!index meta "_VALUES") "roles"))
-                (!loop i 0 (!sub (!len roles) 1) 1
+                (!let n (!index roles "n"))
+                (!loop i 0 (!sub n 1) 1
                         (!if (!eq (!index roles i) role)
                              (!call error (!mconcat "The role " (!index (!index role "_VALUES") "name") " has already been added."))))
-                (!assign (!index roles (!len roles)) role)
+                (!assign (!index roles n) role)
+                (!assign (!index roles "n") (!add n 1))
                 (!for (k v) ((!call pairs (!index (!index role "_VALUES") "methods")))
                         (!call (!index p6class "add_method") (meta k v)))
                 (!for (_ v) ((!call pairs (!index (!index role "_VALUES") "attributes")))
@@ -2370,17 +2384,21 @@ local prelude = [[
                 (!if (!eq meta parent)
                      (!call error (!mconcat "Class '" (!callmeth1 meta name) "' cannot inherit from itself.")))
                 (!let parents (!index (!index meta "_VALUES") "parents"))
-                (!loop i 0 (!sub (!len parents) 1) 1
+                (!let n (!index parents "n"))
+                (!loop i 0 (!sub n 1) 1
                         (!if (!eq (!index parents i) parent)
                              (!call error (!mconcat "Already have " (!callmeth1 parent name) " as a parent class."))))
-                (!assign (!index parents (!len parents)) parent)
+                (!assign (!index parents n) parent)
+                (!assign (!index parents "n") (!add n 1))
                 (!let ISA (!index (!index meta "_VALUES") "ISA"))
-                (!assign (!index ISA (!len ISA)) (!index (!index parent "_VALUES") "ISA"))
+                (!let n (!index ISA "n"))
+                (!assign (!index ISA n) (!index (!index parent "_VALUES") "ISA"))
+                (!assign (!index ISA "n") (!add n 1))
                 (!call setmetatable (!index (!index meta "_VALUES") "proto") (
                         "__index": (!lambda (t k)
                                         (!letrec search (!lambda (class)
                                                         (!let parents (!index (!index class "_VALUES") "parents"))
-                                                        (!loop i 0 (!sub (!len parents) 1) 1
+                                                        (!loop i 0 (!sub (!index parents "n") 1) 1
                                                                 (!let p (!index parents i))
                                                                 (!let v (!or (!call1 rawget (!index (!index p "_VALUES") "proto") k) (!call1 search p)))
                                                                 (!if v (!return v)))))
@@ -2394,7 +2412,7 @@ local prelude = [[
 (!call (!index p6class "add_method") (p6class "isa" (!lambda (a)
                 (!let (meta parent) ((!call unpack a)))
                 (!letrec walk (!lambda (types)
-                                (!loop i 0 (!sub (!len types) 1) 1
+                                (!loop i 0 (!sub (!index types "n") 1) 1
                                         (!define v (!index types i))
                                         (!if (!eq v parent)
                                              (!return !true)
@@ -2406,7 +2424,7 @@ local prelude = [[
 (!call (!index p6class "add_method") (p6class "does" (!lambda (a)
                 (!let (meta role) ((!call unpack a)))
                 (!let roles (!index (!index meta "_VALUES") "roles"))
-                (!loop i 0 (!sub (!len roles) 1) 1
+                (!loop i 0 (!sub (!index roles "n") 1) 1
                         (!if (!eq (!index roles i) role)
                              (!return !true)))
                 (!return !false))))
@@ -2905,7 +2923,7 @@ local prelude = [[
                 (!define array (!or (!call unpack a) ()))
                 (!assign array (!or (!index array "_VALUES") array))
                 (!call checktype "new" 1 array "table")
-                (!assign (!index array "n") (!or (!index array "n") (!len array)))
+                (!call assert (!index array "n"))
                 (!return (!call setmetatable ("_VALUES": array "_CLASS": class) (!index (!index class "_VALUES") "mt"))))))
 (!call (!index p6class "add_method") (p6array "WHAT" (!lambda (self)
                 (!return p6array))))
@@ -2916,7 +2934,7 @@ local prelude = [[
                 (!let t ())
                 (!loop i 0 (!sub (!index (!index self "_VALUES") "n") 1) 1
                         (!let e (!index self i))
-                        (!assign (!index t (!len t)) (!or (!and e (!callmeth1 e str)) "")))
+                        (!assign (!index t (!add (!len t) 1)) (!or (!and e (!callmeth1 e str)) "")))
                 (!return (!call tconcat t sep)))))
 (!call (!index p6class "add_method") (p6array "str" (!lambda (self)
                 (!return (!callmeth self join)))))
@@ -2930,40 +2948,44 @@ local prelude = [[
                 (!let t ())
                 (!loop i 0 (!sub (!index (!index self "_VALUES") "n") 1) 1
                         (!let e (!index self i))
-                        (!assign (!index t (!len t)) (!or (!and e (!callmeth1 e gist)) "Nil")))
+                        (!assign (!index t (!add (!len t) 1)) (!or (!and e (!callmeth1 e gist)) "Nil")))
                 (!return (!call tconcat t " ")))))
 (!call (!index p6class "add_method") (p6array "perl" (!lambda (self)
                 (!let t ())
                 (!loop i 0 (!sub (!index (!index self "_VALUES") "n") 1) 1
                         (!let e (!index self i))
-                        (!assign (!index t (!len t)) (!or (!and e (!callmeth1 e perl)) "Nil")))
+                        (!assign (!index t (!add (!len t) 1)) (!or (!and e (!callmeth1 e perl)) "Nil")))
                 (!return (!concat "Array.new(" (!concat (!call1 tconcat t ", ") ")"))))))
 (!call (!index p6class "add_method") (p6array "elems" (!lambda (self)
                 (!return (!index (!index self "_VALUES") "n")))))
 (!call (!index p6class "add_method") (p6array "push" (!lambda (self a)
                 (!let v (!call unpack a))
-                (!assign (!index (!index self "_VALUES") "n") (!add (!index (!index self "_VALUES") "n") 1))
-                (!assign (!index self (!index (!index self "_VALUES") "n")) v)
+                (!let n (!index (!index self "_VALUES") "n"))
+                (!assign (!index self n) v)
+                (!assign (!index (!index self "_VALUES") "n") (!add n 1))
                 (!return self))))
 (!call (!index p6class "add_method") (p6array "pop" (!lambda (self)
-                (!let v (!index self (!index (!index self "_VALUES") "n")))
-                (!assign (!index (!index self "_VALUES") "n") (!sub (!index (!index self "_VALUES") "n") 1))
+                (!let n (!sub (!index (!index self "_VALUES") "n") 1))
+                (!let v (!index self n))
+                (!assign (!index (!index self "_VALUES") "n") n)
                 (!return v))))
 (!call (!index p6class "add_method") (p6array "unshift" (!lambda (self a)
                 (!let v (!call unpack a))
-                (!loop i 0 (!sub (!index (!index self "_VALUES") "n") 1) 1
-                        (!assign (!index self (!add i 1)) (!index self i)))
+                (!let n (!index (!index self "_VALUES") "n"))
+                (!loop i n 1 -1
+                        (!assign (!index self i) (!index self (!sub i 1))))
                 (!assign (!index self 0) v)
-                (!assign (!index (!index self "_VALUES") "n") (!add (!index (!index self "_VALUES") "n") 1))
+                (!assign (!index (!index self "_VALUES") "n") (!add n 1))
                 (!return self))))
 (!call (!index p6class "add_method") (p6array "shift" (!lambda (self)
                 (!let v (!index self 0))
-                (!loop i (!sub (!index (!index self "_VALUES") "n") 1) 0 -1
-                        (!assign (!index self i) (!index self (!add i 1))))
-                (!assign (!index (!index self "_VALUES") "n") (!sub (!index (!index self "_VALUES") "n") 1))
+                (!let n (!sub (!index (!index self "_VALUES") "n") 1))
+                (!loop i 1 n 1
+                        (!assign (!index self (!sub i 1)) (!index self i)))
+                (!assign (!index (!index self "_VALUES") "n") n)
                 (!return v))))
 (!call (!index p6class "add_method") (p6array "delete" (!lambda (self a)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                         (!assign (!index self (!index a i)) !nil))
                 (!loop i (!sub (!index (!index self "_VALUES") "n") 1) 0 -1
                         (!if (!index self i)
@@ -2971,7 +2993,7 @@ local prelude = [[
                                   (!break))))
                 (!return self))))
 (!call (!index p6class "add_method") (p6array "exists" (!lambda (self a)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                         (!if (!eq (!index self (!index a i)) !nil)
                              (!return !false)))
                 (!return !true))))
@@ -3037,11 +3059,11 @@ local prelude = [[
 (!call (!index p6class "add_method") (p6hash "str" (!lambda (self)
                 (!let t ())
                 (!for (k v) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) k)
-                        (!assign (!index t (!len t)) "\t")
-                        (!assign (!index t (!len t)) (!callmeth1 v str))
-                        (!assign (!index t (!len t)) "\n"))
-                (!assign (!index t (!sub (!len t) 1)) !nil)
+                        (!assign (!index t (!add (!len t) 1)) k)
+                        (!assign (!index t (!add (!len t) 1)) "\t")
+                        (!assign (!index t (!add (!len t) 1)) (!callmeth1 v str))
+                        (!assign (!index t (!add (!len t) 1)) "\n"))
+                (!assign (!index t (!len t)) !nil)
                 (!return (!call tconcat t)))))
 (!call (!index p6class "add_method") (p6hash "bool" (!lambda (self)
                 (!return (!ne (!call1 next self) !nil)))))
@@ -3052,16 +3074,16 @@ local prelude = [[
 (!call (!index p6class "add_method") (p6hash "gist" (!lambda (self)
                 (!let t ())
                 (!for (k v) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) k)
-                        (!assign (!index t (!len t)) "\t")
-                        (!assign (!index t (!len t)) (!callmeth1 v gist))
-                        (!assign (!index t (!len t)) "\n"))
-                (!assign (!index t (!sub (!len t) 1)) !nil)
+                        (!assign (!index t (!add (!len t) 1)) k)
+                        (!assign (!index t (!add (!len t) 1)) "\t")
+                        (!assign (!index t (!add (!len t) 1)) (!callmeth1 v gist))
+                        (!assign (!index t (!add (!len t) 1)) "\n"))
+                (!assign (!index t (!len t)) !nil)
                 (!return (!call tconcat t)))))
 (!call (!index p6class "add_method") (p6hash "perl" (!lambda (self)
                 (!let t ())
                 (!for (k v) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) (!mconcat k " => " (!callmeth1 v perl))))
+                        (!assign (!index t (!add (!len t) 1)) (!mconcat k " => " (!callmeth1 v perl))))
                 (!return (!mconcat "(" (!call1 tconcat t ", ") ").hash")))))
 (!call (!index p6class "add_method") (p6hash "elems" (!lambda (self)
                 (!define n 0)
@@ -3070,19 +3092,29 @@ local prelude = [[
                 (!return n))))
 (!call (!index p6class "add_method") (p6hash "keys" (!lambda (self)
                 (!let t ())
+                (!define n 0)
                 (!for (k) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) k))
+                        (!assign (!index t n) k)
+                        (!assign n (!add n 1)))
+                (!assign (!index t "n") n)
                 (!return (!callmeth (!index _P6PKG "Array") new (t))))))
 (!call (!index p6class "add_method") (p6hash "values" (!lambda (self)
                 (!let t ())
+                (!define n 0)
                 (!for (k v) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) v))
+                        (!assign (!index t n) v)
+                        (!assign n (!add n 1)))
+                (!assign (!index t "n") n)
                 (!return (!callmeth (!index _P6PKG "Array") new (t))))))
 (!call (!index p6class "add_method") (p6hash "kv" (!lambda (self)
                 (!let t ())
+                (!define n 0)
                 (!for (k v) ((!call pairs (!index self "_VALUES")))
-                        (!assign (!index t (!len t)) k)
-                        (!assign (!index t (!len t)) v))
+                        (!assign (!index t n) k)
+                        (!assign n (!add n 1))
+                        (!assign (!index t n) v)
+                        (!assign n (!add n 1)))
+                (!assign (!index t "n") n)
                 (!return (!callmeth (!index _P6PKG "Array") new (t))))))
 (!call (!index p6class "add_method") (p6hash "invert" (!lambda (self)
                 (!let t ())
@@ -3090,7 +3122,7 @@ local prelude = [[
                         (!assign (!index t v) k))
                 (!return (!callmeth (!index _P6PKG "Hash") new (t))))))
 (!call (!index p6class "add_method") (p6hash "push" (!lambda (self a)
-                (!loop i 0 (!sub (!len a) 1) 2
+                (!loop i 1 (!len a) 2
                         (!call rawset (!index self "_VALUES") (!call1 keystr (!index a i)) (!index a (!add i 1))))
                 (!return self))))
 )
@@ -3103,14 +3135,14 @@ local prelude = [[
 (!let stdout (!index io "stdout"))
 (!let stderr (!index io "stderr"))
 (!assign (!index main "&print") (!lambda (a)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                         (!callmeth stdout write (!callmeth1 (!index a i) str)))))
 (!assign (!index main "&say") (!lambda (a)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                         (!callmeth stdout write (!callmeth1 (!index a i) str)))
                 (!callmeth stdout write "\n")))
 (!assign (!index main "&note") (!lambda (a)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                         (!callmeth stderr write (!callmeth1 (!index a i) str)))
                 (!callmeth stderr write "\n")))
 (!assign (!index main "&plan") (!lambda (a)
@@ -3133,12 +3165,15 @@ local prelude = [[
 
 )
 
-(!let unpack (!index tvm "unpack"))
+(!let unpack (!index table "unpack"))
 (!let _PKG (!index _P6PKG "MAIN"))
 ]]
 
 local termination = [[
-(!let tconcat (!index tvm "concat"))
+
+(!line "@termination(nqp/compiler.lua)" 1)
+
+(!let tconcat (!index table "concat"))
 (!assign uml2dot (!lambda (opt)
                 (!assign opt (!or opt ()))
                 (!let with_attr (!not (!index opt "no_attr")))
@@ -3146,82 +3181,82 @@ local termination = [[
                 (!let note (!index opt "note"))
                 (!let out ("digraph {\n\n    node [shape=record];\n\n"))
                 (!if note
-                    (!do (!assign (!index out (!len out)) "    \"__note__\"\n")
-                    (!assign (!index out (!len out)) (!mconcat "        [label=\"" note "\" shape=note];\n\n"))))
+                    (!do (!assign (!index out (!add (!len out) 1)) "    \"__note__\"\n")
+                    (!assign (!index out (!add (!len out) 1)) (!mconcat "        [label=\"" note "\" shape=note];\n\n"))))
                 (!for (classname class) ((!call pairs _P6PKG))
                         (!if (!and (!eq (!call1 type class) "table") (!eq (!index class "_CLASS") (!index _P6PKG "NQP::Metamodel::ClassHOW")))
-                             (!do (!assign (!index out (!len out)) (!mconcat "    \"" classname "\"\n"))
-                                  (!assign (!index out (!len out)) "        [label=\"{")
-                                  (!assign (!index out (!len out)) "\\N")
+                             (!do (!assign (!index out (!add (!len out) 1)) (!mconcat "    \"" classname "\"\n"))
+                                  (!assign (!index out (!add (!len out) 1)) "        [label=\"{")
+                                  (!assign (!index out (!add (!len out) 1)) "\\N")
                                   (!if with_attr
                                        (!do (!define first !true)
                                             (!for (name) ((!call pairs (!index (!index class "_VALUES") "attributes")))
                                                 (!if first
-                                                     (!do (!assign (!index out (!len out)) "|")
+                                                     (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                           (!assign first !false)))
-                                                (!assign (!index out (!len out)) (!concat name "\\l")))))
+                                                (!assign (!index out (!add (!len out) 1)) (!concat name "\\l")))))
                                   (!if with_meth
                                        (!do (!define first !true)
                                             (!for (name) ((!call pairs (!index (!index class "_VALUES") "methods")))
                                                 (!if first
-                                                     (!do (!assign (!index out (!len out)) "|")
+                                                     (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                           (!assign first !false)))
-                                                (!assign (!index out (!len out)) (!concat name "()\\l")))))
-                                  (!assign (!index out (!len out)) "}\"];\n")
+                                                (!assign (!index out (!add (!len out) 1)) (!concat name "()\\l")))))
+                                  (!assign (!index out (!add (!len out) 1)) "}\"];\n")
                                   (!let parents (!index (!index class "_VALUES") "parents"))
-                                  (!loop i 0 (!sub (!len parents) 1) 1
+                                  (!loop i 0 (!sub (!index parents "n") 1) 1
                                         (!let parent (!index parents i))
-                                        (!assign (!index out (!len out)) (!mconcat "    \"" classname "\" -> \"" (!index (!index parent "_VALUES") "name") "\" // extends\n"))
-                                        (!assign (!index out (!len out)) "        [arrowhead = onormal, arrowtail = none, arrowsize = 2.0];\n"))
+                                        (!assign (!index out (!add (!len out) 1)) (!mconcat "    \"" classname "\" -> \"" (!index (!index parent "_VALUES") "name") "\" // extends\n"))
+                                        (!assign (!index out (!add (!len out) 1)) "        [arrowhead = onormal, arrowtail = none, arrowsize = 2.0];\n"))
                                   (!let roles (!index (!index class "_VALUES") "roles"))
-                                  (!loop i 0 (!sub (!len roles) 1) 1
+                                  (!loop i 0 (!sub (!index roles "n") 1) 1
                                         (!let role (!index roles i))
-                                        (!assign (!index out (!len out)) (!mconcat "    \"" classname "\" -> \"" (!index (!index role "_VALUES") "name") "\" // with\n"))
-                                        (!assign (!index out (!len out)) "        [arrowhead = odot, arrowtail = none];\n"))
-                                  (!assign (!index out (!len out)) "\n"))))
+                                        (!assign (!index out (!add (!len out) 1)) (!mconcat "    \"" classname "\" -> \"" (!index (!index role "_VALUES") "name") "\" // with\n"))
+                                        (!assign (!index out (!add (!len out) 1)) "        [arrowhead = odot, arrowtail = none];\n"))
+                                  (!assign (!index out (!add (!len out) 1)) "\n"))))
                 (!for (rolename role) ((!call pairs _P6PKG))
                         (!if (!and (!eq (!call1 type role) "table") (!eq (!index role "_CLASS") (!index _P6PKG "NQP::Metamodel::RoleHOW")))
-                             (!do (!assign (!index out (!len out)) (!mconcat "    \"" rolename "\"\n"))
-                                  (!assign (!index out (!len out)) "        [label=\"{&laquo;role&raquo;\\n\\N")
+                             (!do (!assign (!index out (!add (!len out) 1)) (!mconcat "    \"" rolename "\"\n"))
+                                  (!assign (!index out (!add (!len out) 1)) "        [label=\"{&laquo;role&raquo;\\n\\N")
                                   (!if with_attr
                                       (!do (!define first !true)
                                            (!for (name) ((!call pairs (!index (!index role "_VALUES") "attributes")))
                                                 (!if first
-                                                     (!do (!assign (!index out (!len out)) "|")
+                                                     (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                           (!assign first !false)))
-                                                (!assign (!index out (!len out)) (!concat name "\\l")))))
+                                                (!assign (!index out (!add (!len out) 1)) (!concat name "\\l")))))
                                   (!if with_meth
                                        (!do (!define first !true)
                                             (!for (name) ((!call pairs (!index (!index role "_VALUES") "methods")))
                                                 (!if first
-                                                     (!do (!assign (!index out (!len out)) "|")
+                                                     (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                           (!assign first !false)))
-                                                (!assign (!index out (!len out)) (!concat name "()\\l")))))
-                                  (!assign (!index out (!len out)) "}\"];\n")
-                                  (!assign (!index out (!len out)) "\n"))))
+                                                (!assign (!index out (!add (!len out) 1)) (!concat name "()\\l")))))
+                                  (!assign (!index out (!add (!len out) 1)) "}\"];\n")
+                                  (!assign (!index out (!add (!len out) 1)) "\n"))))
                 (!for (modname mod) ((!call pairs _P6PKG))
                         (!if (!and (!eq (!call1 type mod) "table") (!eq (!index mod "_CLASS") (!index _P6PKG "NQP::Metamodel::ModuleHOW")))
-                             (!do (!assign (!index out (!len out)) (!mconcat "    \"" modname "\"\n"))
-                                  (!assign (!index out (!len out)) "        [label=\"{\\N")
+                             (!do (!assign (!index out (!add (!len out) 1)) (!mconcat "    \"" modname "\"\n"))
+                                  (!assign (!index out (!add (!len out) 1)) "        [label=\"{\\N")
                                   (!if with_attr
                                        (!do (!define first !true)
                                             (!for (name v) ((!call pairs (!index mod "_VALUES")))
                                                 (!if (!ne (!call1 type v) "function")
                                                      (!do (!if first
-                                                               (!do (!assign (!index out (!len out)) "|")
+                                                               (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                                     (!assign first !false)))
-                                                          (!assign (!index out (!len out)) (!concat name "\\l")))))))
+                                                          (!assign (!index out (!add (!len out) 1)) (!concat name "\\l")))))))
                                   (!if with_meth
                                        (!do (!define first !true)
                                             (!for (name v) ((!call pairs (!index mod "_VALUES")))
                                                 (!if (!eq (!call1 type v) "function")
                                                      (!do (!if first
-                                                               (!do (!assign (!index out (!len out)) "|")
+                                                               (!do (!assign (!index out (!add (!len out) 1)) "|")
                                                                     (!assign first !false)))
-                                                          (!assign (!index out (!len out)) (!concat name "()\\l")))))))
-                                  (!assign (!index out (!len out)) "}\"];\n")
-                                  (!assign (!index out (!len out)) "\n"))))
-                (!assign (!index out (!len out)) "}")
+                                                          (!assign (!index out (!add (!len out) 1)) (!concat name "()\\l")))))))
+                                  (!assign (!index out (!add (!len out) 1)) "}\"];\n")
+                                  (!assign (!index out (!add (!len out) 1)) "\n"))))
+                (!assign (!index out (!add (!len out) 1)) "}")
                 (!return (!call tconcat out))))
 
 ;(!let f (!call assert (!call (!index io "open") "model.dot" "w")))
@@ -3267,7 +3302,7 @@ if fname then
     end
     local src = f:read'*a'
     f:close()
-    local ast = compile(src, '@' .. fname)
+    local ast = compile(src, fname)
     print(ast:as_op())
 else
     return compile

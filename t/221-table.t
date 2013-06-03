@@ -9,7 +9,7 @@
 
 (!call (!index tvm "dofile") "TAP.tp")
 
-(!let tconcat (!index tvm "concat"))
+(!let tconcat (!index table "concat"))
 (!let tonumber tonumber)
 (!let plan plan)
 (!let is is)
@@ -66,18 +66,18 @@
 (!call is (!index a (!call tonumber k)) "one value")
 
 (!define t (("a" "b" "c") 10))
-(!call is (!index t 1) 10)
-(!call is (!index (!index t 0) 2) "c")
-(!assign (!index (!index t 0) 0) "A")
-(!call is (!call tconcat (!index t 0) ",") "A,b,c")
+(!call is (!index t 2) 10)
+(!call is (!index (!index t 1) 3) "c")
+(!assign (!index (!index t 1) 1) "A")
+(!call is (!call tconcat (!index t 1) ",") "A,b,c")
 
 ;
 (!define tt)
 (!assign tt (("a" "b" "c") 10))
-(!call is (!index tt 1) 10)
-(!call is (!index (!index tt 0) 2) "c")
-(!assign (!index (!index tt 0) 0) "A")
-(!call is (!call tconcat (!index tt 0) ",") "A,b,c")
+(!call is (!index tt 2) 10)
+(!call is (!index (!index tt 1) 3) "c")
+(!assign (!index (!index tt 1) 1) "A")
+(!call is (!call tconcat (!index tt 1) ",") "A,b,c")
 
 ;
 (!assign a ())
@@ -87,9 +87,9 @@
 ;
 (!define tt)
 (!assign tt (("a" "b" "c") 10))
-(!call is (!index tt 1) 10)
-(!call is (!index (!index tt 0) 2) "c")
-(!assign (!index (!index tt 0) 1) "B")
-(!assign (!index (!index tt 0) 2) "C")
-(!call is (!call tconcat (!index tt 0) ",") "a,B,C")
+(!call is (!index tt 2) 10)
+(!call is (!index (!index tt 1) 3) "c")
+(!assign (!index (!index tt 1) 2) "B")
+(!assign (!index (!index tt 1) 3) "C")
+(!call is (!call tconcat (!index tt 1) ",") "a,B,C")
 

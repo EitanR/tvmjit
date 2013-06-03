@@ -29,15 +29,15 @@
 (!define output ())
 
 (!let foo1 (!lambda (a)
-                (!assign (!index output (!len output)) (!concat "foo " a))
+                (!assign (!index output (!add (!len output) 1)) (!concat "foo " a))
                 (!return (!call (!index coroutine "yield") (!mul 2 a)))))
 
 (!define co (!call (!index coroutine "create") (!lambda (a b)
-                (!assign (!index output (!len output)) (!mconcat "co-body " a " " b))
+                (!assign (!index output (!add (!len output) 1)) (!mconcat "co-body " a " " b))
                 (!define r (!call foo1 (!add a 1)))
-                (!assign (!index output (!len output)) (!concat "co-body " r))
+                (!assign (!index output (!add (!len output) 1)) (!concat "co-body " r))
                 (!define (r s) ((!call (!index coroutine "yield") (!add a b) (!sub a b))))
-                (!assign (!index output (!len output)) (!mconcat "co-body " r " " s))
+                (!assign (!index output (!add (!len output) 1)) (!mconcat "co-body " r " " s))
                 (!return b "end"))))
 
 (!call eq_array ((!call (!index coroutine "resume") co 1 10)) (!true 4) "foo1")
@@ -75,7 +75,7 @@
 (!define output ())
 (!define co (!call (!index coroutine "create") (!lambda ()
                 (!loop i 1 10 1
-                        (!assign (!index output (!len output)) i)
+                        (!assign (!index output (!add (!len output) 1)) i)
                         (!call (!index coroutine "yield"))))))
 
 (!call (!index coroutine "resume") co)
@@ -132,7 +132,7 @@
                         (!let t (!call setmetatable () ("__eq": (!lambda (!vararg)
                                         (!return (!call (!index coroutine "yield") !vararg))))))
                         (!let t2 (!call setmetatable () (!call getmetatable t)))
-                        (!assign (!index output (!len output)) (!eq t t2))))))
+                        (!assign (!index output (!add (!len output) 1)) (!eq t t2))))))
 (!call co)
 (!call co !true)
 (!call co !false)
@@ -140,7 +140,7 @@
 
 ;
 (!define co (!call (!index coroutine "wrap") print))
-(!call type_ok co "function")
+(!call type_ok co "function" "wrap print")
 
 (!call error_contains (!lambda () (!call (!index coroutine "wrap") !true))
                       ": bad argument #1 to 'wrap' (function expected, got boolean)")

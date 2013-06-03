@@ -37,7 +37,7 @@ local function handle_script (argv, script)
         chunk = fh:read'*a'
         fh:close()
     end
-    local ast = compiler(chunk, '@' .. fname)
+    local ast = compiler(chunk, fname)
     if target == 'ast' then
         ast:reset'prelude'
         ast:reset'termination'
@@ -91,7 +91,7 @@ if argv[1] == '--ast' then
     target = 'ast'
     n = 2
 end
-if (argv[1] == '--op') or (argv[1] == '--tp') then
+if argv[1] == '--op' then
     target = 'op'
     n = 2
 end

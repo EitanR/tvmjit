@@ -1194,7 +1194,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  jne ->vmeta_binop			// Binop call for compatibility.
   |  movzx RD, PC_RD
   |  mov TAB:FCARG1, [BASE+RD*8]
-  |  jmp ->BC_LEN_Z1
+  |  jmp ->BC_LEN_Z
 #else
   |  jmp ->vmeta_binop			// Binop call for compatibility.
 #endif
@@ -2549,7 +2549,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  cmp dword [BASE+4], LJ_TTAB;  jne ->fff_fallback
   |  mov RB, BASE			// Save BASE.
   |  mov TAB:FCARG1, [BASE]
-  |  call extern lj_tab_len1@4		// LJ_FASTCALL (GCtab *t)
+  |  call extern lj_tab_len@4		// LJ_FASTCALL (GCtab *t)
   |  // Length of table returned in eax (RD).
   |  mov BASE, RB			// Restore BASE.
   |.if DUALNUM
@@ -4326,7 +4326,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_next
     |.endif
     break;
-  case BC_LEN0:
+  case BC_LEN:
     |  ins_AD	// RA = dst, RD = src
     |  checkstr RD, >2
     |  mov STR:RD, [BASE+RD*8]
@@ -4355,60 +4355,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  jnz >9
     |3:
 #endif
-    |->BC_LEN_Z0:
+    |->BC_LEN_Z:
     |  mov RB, BASE			// Save BASE.
-    |  call extern lj_tab_len0@4		// (GCtab *t)
-    |  // Length of table returned in eax (RD).
-    |.if DUALNUM
-    |  // Nothing to do.
-    |.elif SSE
-    |  cvtsi2sd xmm0, RD
-    |.else
-    |  mov ARG1, RD
-    |  fild ARG1
-    |.endif
-    |  mov BASE, RB			// Restore BASE.
-    |  movzx RA, PC_RA
-    |  jmp <1
-#if LJ_52
-    |9:  // Check for __len.
-    |  test byte TAB:RB->nomm, 1<<MM_len
-    |  jnz <3
-    |  jmp ->vmeta_len			// 'no __len' flag NOT set: check.
-#endif
-    break;
-  case BC_LEN1:
-    |  ins_AD	// RA = dst, RD = src
-    |  checkstr RD, >2
-    |  mov STR:RD, [BASE+RD*8]
-    |.if DUALNUM
-    |  mov RD, dword STR:RD->len
-    |1:
-    |  mov dword [BASE+RA*8+4], LJ_TISNUM
-    |  mov dword [BASE+RA*8], RD
-    |.elif SSE
-    |  xorps xmm0, xmm0
-    |  cvtsi2sd xmm0, dword STR:RD->len
-    |1:
-    |  movsd qword [BASE+RA*8], xmm0
-    |.else
-    |  fild dword STR:RD->len
-    |1:
-    |  fstp qword [BASE+RA*8]
-    |.endif
-    |  ins_next
-    |2:
-    |  checktab RD, ->vmeta_len
-    |  mov TAB:FCARG1, [BASE+RD*8]
-#if LJ_52
-    |  mov TAB:RB, TAB:FCARG1->metatable
-    |  cmp TAB:RB, 0
-    |  jnz >9
-    |3:
-#endif
-    |->BC_LEN_Z1:
-    |  mov RB, BASE			// Save BASE.
-    |  call extern lj_tab_len1@4		// (GCtab *t)
+    |  call extern lj_tab_len@4		// (GCtab *t)
     |  // Length of table returned in eax (RD).
     |.if DUALNUM
     |  // Nothing to do.
@@ -5263,7 +5212,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sub RD, KBASE
     |  shl KBASE, 3
     |  add KBASE, TAB:RB->array
-    |  sub KBASE, 8
     |3:  // Copy result slots to table.
     |.if X64
     |  mov RBa, [RA]

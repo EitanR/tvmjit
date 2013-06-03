@@ -35,7 +35,7 @@
   _(lj_meta_call) _(lj_meta_cat) _(lj_meta_comp) _(lj_meta_equal) \
   _(lj_meta_for) _(lj_meta_len) _(lj_meta_tget) _(lj_meta_tset) \
   _(lj_state_growstack) _(lj_str_fromnum) _(lj_str_fromnumber) _(lj_str_new) \
-  _(lj_tab_dup) _(lj_tab_get) _(lj_tab_getinth) _(lj_tab_len0) _(lj_tab_len1) _(lj_tab_new) \
+  _(lj_tab_dup) _(lj_tab_get) _(lj_tab_getinth) _(lj_tab_len) _(lj_tab_new) \
   _(lj_tab_newkey) _(lj_tab_next) _(lj_tab_reasize) \
   JITGOTDEF(_) FFIGOTDEF(_)
 

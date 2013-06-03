@@ -118,7 +118,7 @@ local function parse_array (s, pos)
         return result, posn
     end
     posn = pos
-    local n = 0
+    local n = 1
     while true do
         local val, posv = parse_value(s, posn)
         result[n] = val

@@ -897,19 +897,19 @@ local prelude = [[
                 (!return (!or (!and a (!not b)) (!and (!not a) b)))))
 (!let _MAND (!lambda (!vararg)
                 (!let t (!vararg))
-                (!loop i 0 (!sub (!len t) 1) 1
+                (!loop i 1 (!len t) 1
                         (!if (!not (!call _TRUTH (!index t i))) (!return !false)))
                 (!return !true)))
 (!let _MOR (!lambda (!vararg)
                 (!let t (!vararg))
-                (!loop i 0 (!sub (!len t) 1) 1
+                (!loop i 1 (!len t) 1
                         (!if (!call _TRUTH (!index t i)) (!return !true)))
                 (!return !false)))
 
 (!let _VISIBLE (!lambda (!vararg)
                 (!let t (!vararg))
                 (!let out (!index io "stdout"))
-                (!loop i 0 (!sub (!len t) 1) 1
+                (!loop i 1 (!len t) 1
                         (!callmeth out write (!call tostring (!index t i))))))
 
 (!define IT)

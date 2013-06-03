@@ -89,7 +89,7 @@
 
 (!define test_number 0)
 (!let dirname (!callmeth (!index arg 0) sub 1 (!sub (!callmeth (!index arg 0) find "314") 1)))
-(!loop i 0 (!sub (!len test_files) 1) 1
+(!loop i 1 (!len test_files) 1
         (!let filename (!index test_files i))
         (!let (f msg) ((!call (!index io "open") (!concat dirname filename) "r")))
         (!if (!eq f !nil)
@@ -103,8 +103,8 @@
                 (!if (!index todo_info test_number)
                      (!call todo (!index todo_info test_number)))
                 (!let code (!mconcat "\
-                    (!let t (!nil (!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
-                    (!if (!eq (!len1 t) 0)\
+                    (!let t ((!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
+                    (!if (!eq (!len t) 0)\
                          (!return \"nil\")\
                          (!return (!call (!index table \"concat\") t \"\\t\")))"))
                 (!let (compiled msg) ((!call load code)))

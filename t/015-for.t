@@ -13,7 +13,7 @@
                      (!return i v))))
 
 (!let ipairs (!lambda (a)
-                (!return iter a -1)))
+                (!return iter a 0)))
 
 (!call print "1..18")
 
@@ -21,7 +21,7 @@
 (!for (_ v) ((!call ipairs a))
       (!call print v))
 (!for (i v) ((!call ipairs a))
-      (!call print (!mconcat "ok " (!add 4 i) " - for ipairs")))
+      (!call print (!mconcat "ok " (!add 3 i) " - for ipairs")))
 
 (!define r !false)
 (!define t ("a": 10 "b": 100))
@@ -33,7 +33,7 @@
      (!call print "ok 7 - for ipairs (hash)"))
 
 (!for (k) ((!call pairs a))
-      (!call print (!mconcat "ok " (!add 8 k) " - for pairs")))
+      (!call print (!mconcat "ok " (!add 7 k) " - for pairs")))
 
 (!define i 1)
 (!for (k) ((!call pairs t))
@@ -48,7 +48,7 @@
       (!if (!eq v "stop") (!break))
       (!call print v)
       (!assign i _))
-(!if (!eq i 1)
+(!if (!eq i 2)
      (!call print "ok 15 - break")
      (!call print (!concat "not ok 15 - " i)))
 

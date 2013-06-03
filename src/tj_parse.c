@@ -31,7 +31,7 @@
 /* tVM special. */
 #define SPDEF(_) \
   _(vararg) _(nil) _(false) _(true) \
-  _(neg) _(not) _(len) _(len1) \
+  _(neg) _(not) _(len) \
   _(add) _(sub) _(mul) _(div) _(mod) _(pow) \
   _(concat) \
   _(eq) _(lt) _(le) _(ne) _(gt) _(ge) \
@@ -964,7 +964,7 @@ static void bcemit_unop(FuncState *fs, BCOp op, ExpDesc *e)
       lua_assert(e->k == VNONRELOC);
     }
   } else {
-    lua_assert(op == BC_UNM || op == BC_LEN0 || op == BC_LEN1);
+    lua_assert(op == BC_UNM || op == BC_LEN);
     if (op == BC_UNM && !expr_hasjump(e)) {  /* Constant-fold negations. */
 #if LJ_HASFFI
       if (e->k == VKCDATA) {  /* Fold in-place since cdata is not interned. */
@@ -1716,7 +1716,7 @@ static void expr_table(LexState *ls, ExpDesc *e)
   FuncState *fs = ls->fs;
   GCtab *t = NULL;
   int vcall = 0, needarr = 0, fixt = 0;
-  uint32_t narr = 0;  /* First array index. */
+  uint32_t narr = 1;  /* First array index. */
   uint32_t nhash = 0;  /* Number of hash entries. */
   BCReg freg = fs->freereg;
   BCPos pc = bcemit_AD(fs, BC_TNEW, freg, 0);
@@ -1773,7 +1773,7 @@ static void expr_table(LexState *ls, ExpDesc *e)
     lua_assert(bc_a(ilp->ins) == freg &&
 	       bc_op(ilp->ins) == (narr > 256 ? BC_TSETV : BC_TSETB));
     expr_init(&en, VKNUM, 0);
-    en.u.nval.u32.lo = narr;
+    en.u.nval.u32.lo = narr-1;
     en.u.nval.u32.hi = 0x43300000;  /* Biased integer to avoid denormals. */
     if (narr > 256) { fs->pc--; ilp--; }
     ilp->ins = BCINS_AD(BC_TSETM, freg, const_num(fs, &en));
@@ -1794,7 +1794,7 @@ static void expr_table(LexState *ls, ExpDesc *e)
     setbc_d(ip, narr|(hsize2hbits(nhash)<<11));
   } else {
     if (needarr && t->asize < narr)
-      lj_tab_reasize(fs->L, t, narr);
+      lj_tab_reasize(fs->L, t, narr-1);
     if (fixt) {  /* Fix value for dummy keys in template table. */
       Node *node = noderef(t->node);
       uint32_t i, hmask = t->hmask;
@@ -1930,9 +1930,7 @@ static void parse_unop (LexState *ls, unsigned sp, ExpDesc *e)
   } else if (sp == SP_neg) {
     op = BC_UNM;
   } else if (sp == SP_len) {
-    op = BC_LEN0;
-  } else if (sp == SP_len1) {
-    op = BC_LEN1;
+    op = BC_LEN;
   } else {
     lua_assert(0);
   }
@@ -2597,7 +2595,6 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 	case SP_neg:
 	case SP_not:
 	case SP_len:
-	case SP_len1:
 	  parse_unop(ls, sp, v);
 	  break;
 	case SP_add:

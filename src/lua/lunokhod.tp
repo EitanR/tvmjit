@@ -209,7 +209,7 @@
 (!line 268)(!assign pos (!call skip_ws s pos))
 (!line 269)(!while (!not (!call block_follow s pos !true))
 
-(!line 270)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A")
+(!line 270)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A")
 (!line 271)(!if (!callmeth1 tok_return match s pos)
 (!do
 (!line 272)(!return (!call statement s pos buffer))))
@@ -225,7 +225,7 @@
 (!line 287)(!if (!not posn)
 (!do
 (!line 288)(!call syntaxerror "<name> expected")))
-(!line 290)(!assign (!index buffer (!add (!len1 buffer) 1)) (!call quote capt))
+(!line 290)(!assign (!index buffer (!add (!len buffer) 1)) (!call quote capt))
 (!line 291)(!return posn)))
 
 (!line 295)(!define yindex)(!assign yindex (!lambda (s pos buffer)
@@ -243,9 +243,9 @@
 (!line 311)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
 (!line 312)(!if posn
 (!do
-(!line 313)(!assign (!index buffer (!add (!len1 buffer) 1)) "\"")
-(!line 314)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
-(!line 315)(!assign (!index buffer (!add (!len1 buffer) 1)) "\"")
+(!line 313)(!assign (!index buffer (!add (!len buffer) 1)) "\"")
+(!line 314)(!assign (!index buffer (!add (!len buffer) 1)) capt)
+(!line 315)(!assign (!index buffer (!add (!len buffer) 1)) "\"")
 (!line 316)(!assign pos posn))(!do
 (!line 318)(!assign pos (!call yindex s pos buffer))))
 (!line 320)(!assign pos (!call skip_ws s pos))
@@ -253,14 +253,13 @@
 (!line 322)(!if (!not posn)
 (!do
 (!line 323)(!call syntaxerror "= expected")))
-(!line 325)(!assign (!index buffer (!add (!len1 buffer) 1)) ": ")
+(!line 325)(!assign (!index buffer (!add (!len buffer) 1)) ": ")
 (!line 326)(!assign pos (!call skip_ws s posn))
 (!line 327)(!return (!call expr s pos buffer !true))))
 
-(!line 331)(!define listfield)(!assign listfield (!lambda (s pos buffer list)
-(!line 333)(!if (!eq (!len1 list) 0)
+(!line 332)(!define listfield)(!assign listfield (!lambda (s pos buffer list)
+(!line 334)(!if (!eq (!len list) 0)
 (!do
-(!line 334)(!assign (!index buffer (!add (!len1 buffer) 1)) "!nil ")
 (!line 335)(!assign (!index list 1) !true)))
 (!line 337)(!return (!call expr s pos buffer))))
 
@@ -282,7 +281,7 @@
 (!line 361)(!if (!not posn)
 (!do
 (!line 362)(!call syntaxerror "{ expected")))
-(!line 364)(!assign (!index buffer (!add (!len1 buffer) 1)) "(")
+(!line 364)(!assign (!index buffer (!add (!len buffer) 1)) "(")
 (!line 365)(!assign pos (!call skip_ws s posn))
 (!line 366)(!define list ())
 (!line 367)(!repeat
@@ -294,42 +293,42 @@
 (!line 373)(!massign (capt posn) ((!callmeth capt_sep match s pos)))
 (!line 374)(!if posn
 (!do
-(!line 375)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 375)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 376)(!assign pos (!call skip_ws s posn))))
 (!not posn))
 (!line 379)(!massign (capt posn) ((!callmeth capt_right_brace match s pos)))
 (!line 380)(!if (!not posn)
 (!do
 (!line 381)(!call syntaxerror "} expected")))
-(!line 383)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 383)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 384)(!return posn)))
 
 (!line 388)(!define parlist)(!assign parlist (!lambda (s pos buffer ismethod)
 (!line 391)(!if ismethod
 (!do
-(!line 392)(!assign (!index buffer (!add (!len1 buffer) 1)) "self")))
+(!line 392)(!assign (!index buffer (!add (!len buffer) 1)) "self")))
 (!line 394)(!if (!not (!callmeth tok_right_paren match s pos))
 (!do
 (!line 395)(!if ismethod
 (!do
-(!line 396)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")))
+(!line 396)(!assign (!index buffer (!add (!len buffer) 1)) " ")))
 (!line 398)(!repeat
 (!line 399)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
 (!line 400)(!if posn
 (!do
-(!line 401)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 401)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 402)(!assign pos posn))(!do
 (!line 404)(!massign (capt posn) ((!callmeth capt_vararg match s pos)))
 (!line 405)(!if posn
 (!do
-(!line 406)(!assign (!index buffer (!add (!len1 buffer) 1)) "!vararg")
+(!line 406)(!assign (!index buffer (!add (!len buffer) 1)) "!vararg")
 (!line 407)(!return posn))(!do
 (!line 409)(!call syntaxerror "<name> or '...' expected")))))
 (!line 412)(!assign pos (!call skip_ws s pos))
 (!line 413)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 414)(!if posn
 (!do
-(!line 415)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 415)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 416)(!assign pos (!call skip_ws s posn))))
 (!not posn))))
 (!line 420)(!return pos)))
@@ -339,7 +338,7 @@
 (!line 427)(!if (!not posn)
 (!do
 (!line 428)(!call syntaxerror "( expected")))
-(!line 430)(!assign (!index buffer (!add (!len1 buffer) 1)) "(")
+(!line 430)(!assign (!index buffer (!add (!len buffer) 1)) "(")
 (!line 431)(!assign pos (!call skip_ws s posn))
 (!line 432)(!assign pos (!call parlist s pos buffer ismethod))
 (!line 433)(!assign pos (!call skip_ws s pos))
@@ -347,14 +346,14 @@
 (!line 435)(!if (!not posn)
 (!do
 (!line 436)(!call syntaxerror ") expected")))
-(!line 438)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 438)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 439)(!assign pos (!call statlist s posn buffer))
 (!line 440)(!assign pos (!call skip_ws s pos))
 (!line 441)(!massign (capt posn) ((!callmeth capt_end match s pos)))
 (!line 442)(!if (!not posn)
 (!do
 (!line 443)(!call syntaxerror "'end' expected")))
-(!line 445)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 445)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 446)(!return posn)))
 
 (!line 450)(!define explist)(!assign explist (!lambda (s pos buffer)
@@ -363,7 +362,7 @@
 (!line 454)(!define (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 455)(!while posn
 
-(!line 456)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 456)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 457)(!assign pos (!call skip_ws s posn))
 (!line 458)(!assign pos (!call expr s pos buffer))
 (!line 459)(!assign pos (!call skip_ws s pos))
@@ -391,7 +390,7 @@
 (!line 488)(!massign (capt posn) ((!callmeth capt_string match s pos)))
 (!line 489)(!if posn
 (!do
-(!line 490)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 490)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 491)(!return posn)))
 (!line 493)(!call syntaxerror "function arguments expected")))
 
@@ -410,7 +409,7 @@
 (!line 511)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
 (!line 512)(!if posn
 (!do
-(!line 513)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 513)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 514)(!return posn)))
 (!line 516)(!call syntaxerror "unexpected symbol")))
 
@@ -424,81 +423,81 @@
 (!line 528)(!assign pos (!call skip_ws s pos))
 (!line 529)(!if (!callmeth1 tok_dot match s pos)
 (!do
-(!line 530)(!assign (!index buf (!add (!len1 buf) 1)) "(!index ")
-(!line 531)(!assign (!index buf (!add (!len1 buf) 1)) exp)
-(!line 532)(!assign (!index buf (!add (!len1 buf) 1)) " ")
+(!line 530)(!assign (!index buf (!add (!len buf) 1)) "(!index ")
+(!line 531)(!assign (!index buf (!add (!len buf) 1)) exp)
+(!line 532)(!assign (!index buf (!add (!len buf) 1)) " ")
 (!line 533)(!assign pos (!call fieldsel s pos buf))
-(!line 534)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 534)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 535)(!assign exp (!call tconcat buf)))(!if (!callmeth1 tok_left_bracket match s pos)
 (!do
-(!line 537)(!assign (!index buf (!add (!len1 buf) 1)) "(!index ")
-(!line 538)(!assign (!index buf (!add (!len1 buf) 1)) exp)
-(!line 539)(!assign (!index buf (!add (!len1 buf) 1)) " ")
+(!line 537)(!assign (!index buf (!add (!len buf) 1)) "(!index ")
+(!line 538)(!assign (!index buf (!add (!len buf) 1)) exp)
+(!line 539)(!assign (!index buf (!add (!len buf) 1)) " ")
 (!line 540)(!assign pos (!call yindex s pos buf))
-(!line 541)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 541)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 542)(!assign exp (!call tconcat buf)))(!if (!callmeth1 tok_colon match s pos)
 (!do
 (!line 544)(!define (_ posn) ((!callmeth capt_colon match s pos)))
 (!line 545)(!if one
 (!do
-(!line 546)(!assign (!index buf (!add (!len1 buf) 1)) "(!callmeth1 "))(!do
-(!line 548)(!assign (!index buf (!add (!len1 buf) 1)) "(!callmeth ")))
-(!line 550)(!assign (!index buf (!add (!len1 buf) 1)) exp)
-(!line 551)(!assign (!index buf (!add (!len1 buf) 1)) " ")
+(!line 546)(!assign (!index buf (!add (!len buf) 1)) "(!callmeth1 "))(!do
+(!line 548)(!assign (!index buf (!add (!len buf) 1)) "(!callmeth ")))
+(!line 550)(!assign (!index buf (!add (!len buf) 1)) exp)
+(!line 551)(!assign (!index buf (!add (!len buf) 1)) " ")
 (!line 552)(!assign pos (!call skip_ws s posn))
 (!line 553)(!define (capt posn) ((!callmeth capt_identifier match s pos)))
 (!line 554)(!if (!not posn)
 (!do
 (!line 555)(!call syntaxerror "<name> expected")))
-(!line 557)(!assign (!index buf (!add (!len1 buf) 1)) capt)
-(!line 558)(!assign (!index buf (!add (!len1 buf) 1)) " ")
+(!line 557)(!assign (!index buf (!add (!len buf) 1)) capt)
+(!line 558)(!assign (!index buf (!add (!len buf) 1)) " ")
 (!line 559)(!assign pos (!call skip_ws s posn))
 (!line 560)(!assign pos (!call funcargs s pos buf))
-(!line 561)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 561)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 562)(!assign exp (!call tconcat buf)))(!if (!or (!or (!callmeth1 tok_left_paren match s pos) (!callmeth tok_left_brace match s pos)) (!callmeth tok_string match s pos))
 (!do
 (!line 564)(!if one
 (!do
-(!line 565)(!assign (!index buf (!add (!len1 buf) 1)) "(!call1 "))(!do
-(!line 567)(!assign (!index buf (!add (!len1 buf) 1)) "(!call ")))
-(!line 569)(!assign (!index buf (!add (!len1 buf) 1)) exp)
-(!line 570)(!assign (!index buf (!add (!len1 buf) 1)) " ")
+(!line 565)(!assign (!index buf (!add (!len buf) 1)) "(!call1 "))(!do
+(!line 567)(!assign (!index buf (!add (!len buf) 1)) "(!call ")))
+(!line 569)(!assign (!index buf (!add (!len buf) 1)) exp)
+(!line 570)(!assign (!index buf (!add (!len buf) 1)) " ")
 (!line 571)(!assign pos (!call funcargs s pos buf))
-(!line 572)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 572)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 573)(!assign exp (!call tconcat buf)))(!do
-(!line 575)(!assign (!index buffer (!add (!len1 buffer) 1)) exp)
+(!line 575)(!assign (!index buffer (!add (!len buffer) 1)) exp)
 (!line 576)(!return pos)))))))))
 
 (!line 582)(!define simpleexpr)(!assign simpleexpr (!lambda (s pos buffer one)
 (!line 585)(!define (capt posn) ((!callmeth capt_number match s pos)))
 (!line 586)(!if posn
 (!do
-(!line 587)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 587)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 588)(!return posn)))
 (!line 590)(!massign (capt posn) ((!callmeth capt_string match s pos)))
 (!line 591)(!if posn
 (!do
-(!line 592)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 592)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 593)(!return posn)))
 (!line 595)(!massign (capt posn) ((!callmeth capt_nil match s pos)))
 (!line 596)(!if posn
 (!do
-(!line 597)(!assign (!index buffer (!add (!len1 buffer) 1)) "!nil")
+(!line 597)(!assign (!index buffer (!add (!len buffer) 1)) "!nil")
 (!line 598)(!return posn)))
 (!line 600)(!massign (capt posn) ((!callmeth capt_true match s pos)))
 (!line 601)(!if posn
 (!do
-(!line 602)(!assign (!index buffer (!add (!len1 buffer) 1)) "!true")
+(!line 602)(!assign (!index buffer (!add (!len buffer) 1)) "!true")
 (!line 603)(!return posn)))
 (!line 605)(!massign (capt posn) ((!callmeth capt_false match s pos)))
 (!line 606)(!if posn
 (!do
-(!line 607)(!assign (!index buffer (!add (!len1 buffer) 1)) "!false")
+(!line 607)(!assign (!index buffer (!add (!len buffer) 1)) "!false")
 (!line 608)(!return posn)))
 (!line 610)(!massign (capt posn) ((!callmeth capt_vararg match s pos)))
 (!line 611)(!if posn
 (!do
-(!line 612)(!assign (!index buffer (!add (!len1 buffer) 1)) "!vararg")
+(!line 612)(!assign (!index buffer (!add (!len buffer) 1)) "!vararg")
 (!line 613)(!return posn)))
 (!line 615)(!if (!callmeth1 tok_left_brace match s pos)
 (!do
@@ -506,43 +505,43 @@
 (!line 618)(!massign (capt posn) ((!callmeth capt_function match s pos)))
 (!line 619)(!if posn
 (!do
-(!line 620)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!lambda ")
+(!line 620)(!assign (!index buffer (!add (!len buffer) 1)) "(!lambda ")
 (!line 621)(!assign pos (!call skip_ws s posn))
 (!line 622)(!return (!call body s pos buffer))))
 (!line 624)(!return (!call suffixedexpr s pos buffer one))))
 
-(!line 628)(!define unop ("not": "(!not " "-": "(!neg " "#": "(!len1 " ))
+(!line 628)(!define unop ("not": "(!not " "-": "(!neg " "#": "(!len " ))
 (!line 633)(!define binop ("+": "(!add " "-": "(!sub " "*": "(!mul " "/": "(!div " "%": "(!mod " "^": "(!pow " "..": "(!concat " "~=": "(!ne " "==": "(!eq " "<=": "(!le " "<": "(!lt " ">=": "(!ge " ">": "(!gt " "and": "(!and " "or": "(!or " ))
-(!line 650)(!define priority ("+": (!nil 6 6) "-": (!nil 6 6) "*": (!nil 7 7) "/": (!nil 7 7) "%": (!nil 7 7) "^": (!nil 10 9) "..": (!nil 5 4) "~=": (!nil 3 3) "==": (!nil 3 3) "<=": (!nil 3 3) "<": (!nil 3 3) ">=": (!nil 3 3) ">": (!nil 3 3) "and": (!nil 2 2) "or": (!nil 1 1) ))
+(!line 650)(!define priority ("+": (6 6) "-": (6 6) "*": (7 7) "/": (7 7) "%": (7 7) "^": (10 9) "..": (5 4) "~=": (3 3) "==": (3 3) "<=": (3 3) "<": (3 3) ">=": (3 3) ">": (3 3) "and": (2 2) "or": (1 1) ))
 (!line 670)(!assign expr (!lambda (s pos buffer one limit)
 (!line 672)(!assign limit (!or limit 0))
 (!line 673)(!define (capt posn) ((!callmeth capt_unopr match s pos)))
 (!line 674)(!define buf ())
 (!line 675)(!if posn
 (!do
-(!line 676)(!assign (!index buf (!add (!len1 buf) 1)) (!index unop capt))
+(!line 676)(!assign (!index buf (!add (!len buf) 1)) (!index unop capt))
 (!line 677)(!assign pos (!call skip_ws s posn))
 (!line 678)(!assign pos (!call expr s pos buf !false 8))
-(!line 679)(!assign (!index buf (!add (!len1 buf) 1)) ")"))(!do
+(!line 679)(!assign (!index buf (!add (!len buf) 1)) ")"))(!do
 (!line 681)(!assign pos (!call simpleexpr s pos buf one))))
 (!line 683)(!define exp (!call tconcat buf))
 (!line 684)(!assign pos (!call skip_ws s pos))
 (!line 685)(!massign (capt posn) ((!callmeth capt_binopr match s pos)))
 (!line 686)(!while (!and posn (!gt (!index (!index priority capt) 1) limit))
 
-(!line 687)(!assign buf (!nil (!index binop capt) exp " "))
+(!line 687)(!assign buf ((!index binop capt) exp " "))
 (!line 688)(!assign pos (!call skip_ws s posn buf))
 (!line 689)(!assign pos (!call expr s pos buf !false (!index (!index priority capt) 2)))
 (!line 690)(!assign pos (!call skip_ws s pos))
-(!line 691)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 691)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 692)(!assign exp (!call tconcat buf))
 (!line 693)(!massign (capt posn) ((!callmeth capt_binopr match s pos))))
-(!line 695)(!assign (!index buffer (!add (!len1 buffer) 1)) exp)
+(!line 695)(!assign (!index buffer (!add (!len buffer) 1)) exp)
 (!line 696)(!return pos)))
 
 (!line 700)(!define block)(!assign block (!lambda (s pos buffer)
 (!line 702)(!define pos (!call statlist s pos buffer))
-(!line 703)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 703)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 704)(!return pos)))
 
 (!line 708)(!define assignment)(!assign assignment (!lambda (s pos buffer n)
@@ -551,12 +550,12 @@
 (!do
 (!line 712)(!if (!eq n 1)
 (!do
-(!line 713)(!define var (!index buffer (!len1 buffer)))
-(!line 714)(!assign (!index buffer (!len1 buffer)) "(!line ")
-(!line 715)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 716)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!massign (")
-(!line 717)(!assign (!index buffer (!add (!len1 buffer) 1)) var)))
-(!line 719)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 713)(!define var (!index buffer (!len buffer)))
+(!line 714)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 715)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 716)(!assign (!index buffer (!add (!len buffer) 1)) ")(!massign (")
+(!line 717)(!assign (!index buffer (!add (!len buffer) 1)) var)))
+(!line 719)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 720)(!assign pos (!call skip_ws s posn))
 (!line 721)(!assign pos (!call suffixedexpr s pos buffer))
 (!line 722)(!assign pos (!call skip_ws s pos))
@@ -567,42 +566,42 @@
 (!line 728)(!call syntaxerror "= expected")))
 (!line 730)(!if (!eq n 1)
 (!do
-(!line 731)(!define var (!index buffer (!len1 buffer)))
-(!line 732)(!assign (!index buffer (!len1 buffer)) "(!line ")
-(!line 733)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 734)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!assign ")
-(!line 735)(!assign (!index buffer (!add (!len1 buffer) 1)) var)
-(!line 736)(!assign (!index buffer (!add (!len1 buffer) 1)) " "))(!do
-(!line 738)(!assign (!index buffer (!add (!len1 buffer) 1)) ") (")))
+(!line 731)(!define var (!index buffer (!len buffer)))
+(!line 732)(!assign (!index buffer (!len buffer)) "(!line ")
+(!line 733)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 734)(!assign (!index buffer (!add (!len buffer) 1)) ")(!assign ")
+(!line 735)(!assign (!index buffer (!add (!len buffer) 1)) var)
+(!line 736)(!assign (!index buffer (!add (!len buffer) 1)) " "))(!do
+(!line 738)(!assign (!index buffer (!add (!len buffer) 1)) ") (")))
 (!line 740)(!assign pos (!call skip_ws s posn))
 (!line 741)(!assign pos (!call explist s pos buffer))
-(!line 742)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 742)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 743)(!if (!ne n 1)
 (!do
-(!line 744)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")))
+(!line 744)(!assign (!index buffer (!add (!len buffer) 1)) ")")))
 (!line 746)(!return pos)))))
 
 (!line 751)(!define breakstat)(!assign breakstat (!lambda (s pos buffer)
 (!line 752)(!define (capt posn) ((!callmeth capt_break match s pos)))
 (!line 753)(!call assert posn)
-(!line 754)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 755)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 756)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!break)")
+(!line 754)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 755)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 756)(!assign (!index buffer (!add (!len buffer) 1)) ")(!break)")
 (!line 757)(!return posn)))
 
 (!line 761)(!define gotostat)(!assign gotostat (!lambda (s pos buffer)
 (!line 762)(!define (capt posn) ((!callmeth capt_goto match s pos)))
 (!line 763)(!call assert posn)
-(!line 764)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 765)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 766)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!goto ")
+(!line 764)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 765)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 766)(!assign (!index buffer (!add (!len buffer) 1)) ")(!goto ")
 (!line 767)(!assign pos (!call skip_ws s posn))
 (!line 768)(!massign (capt posn) ((!callmeth capt_identifier match s pos)))
 (!line 769)(!if (!not posn)
 (!do
 (!line 770)(!call syntaxerror "<name> expected")))
-(!line 772)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
-(!line 773)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 772)(!assign (!index buffer (!add (!len buffer) 1)) capt)
+(!line 773)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 774)(!return posn)))
 
 (!line 778)(!define labelstat)(!assign labelstat (!lambda (s pos buffer)
@@ -610,11 +609,11 @@
 (!line 781)(!if (!not posn)
 (!do
 (!line 782)(!call syntaxerror "<name> expected")))
-(!line 784)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 785)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 786)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!label ")
-(!line 787)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
-(!line 788)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 784)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 785)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 786)(!assign (!index buffer (!add (!len buffer) 1)) ")(!label ")
+(!line 787)(!assign (!index buffer (!add (!len buffer) 1)) capt)
+(!line 788)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 789)(!assign pos (!call skip_ws s posn))
 (!line 790)(!massign (capt posn) ((!callmeth capt_dbcolon match s pos)))
 (!line 791)(!if (!not posn)
@@ -625,12 +624,12 @@
 (!line 798)(!define whilestat)(!assign whilestat (!lambda (s pos buffer)
 (!line 800)(!define (capt posn) ((!callmeth capt_while match s pos)))
 (!line 801)(!call assert posn)
-(!line 802)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 803)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 804)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!while ")
+(!line 802)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 803)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 804)(!assign (!index buffer (!add (!len buffer) 1)) ")(!while ")
 (!line 805)(!assign pos (!call skip_ws s posn))
 (!line 806)(!assign pos (!call expr s pos buffer !true))
-(!line 807)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A")
+(!line 807)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A")
 (!line 808)(!assign pos (!call skip_ws s pos))
 (!line 809)(!massign (capt posn) ((!callmeth capt_do match s pos)))
 (!line 810)(!if (!not posn)
@@ -648,9 +647,9 @@
 (!line 824)(!define repeatstat)(!assign repeatstat (!lambda (s pos buffer)
 (!line 826)(!define (capt posn) ((!callmeth capt_repeat match s pos)))
 (!line 827)(!call assert posn)
-(!line 828)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 829)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 830)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!repeat")
+(!line 828)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 829)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 830)(!assign (!index buffer (!add (!len buffer) 1)) ")(!repeat")
 (!line 831)(!assign pos (!call skip_ws s posn))
 (!line 832)(!assign pos (!call statlist s pos buffer))
 (!line 833)(!assign pos (!call skip_ws s pos))
@@ -659,24 +658,24 @@
 (!do
 (!line 836)(!call syntaxerror "until expected")))
 (!line 838)(!assign pos (!call skip_ws s posn))
-(!line 839)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A")
+(!line 839)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A")
 (!line 840)(!assign pos (!call expr s pos buffer !true))
-(!line 841)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 841)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 842)(!return pos)))
 
 (!line 846)(!define forbody)(!assign forbody (!lambda (s pos buffer name)
-(!line 848)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A")
+(!line 848)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A")
 (!line 849)(!define (capt posn) ((!callmeth capt_do match s pos)))
 (!line 850)(!if (!not posn)
 (!do
 (!line 851)(!call syntaxerror "do expected")))
 (!line 853)(!if name
 (!do
-(!line 854)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!define ")
-(!line 855)(!assign (!index buffer (!add (!len1 buffer) 1)) name)
-(!line 856)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
-(!line 857)(!assign (!index buffer (!add (!len1 buffer) 1)) name)
-(!line 858)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")))
+(!line 854)(!assign (!index buffer (!add (!len buffer) 1)) "(!define ")
+(!line 855)(!assign (!index buffer (!add (!len buffer) 1)) name)
+(!line 856)(!assign (!index buffer (!add (!len buffer) 1)) " ")
+(!line 857)(!assign (!index buffer (!add (!len buffer) 1)) name)
+(!line 858)(!assign (!index buffer (!add (!len buffer) 1)) ")")))
 (!line 860)(!assign pos (!call skip_ws s posn))
 (!line 861)(!return (!call block s pos buffer))))
 
@@ -685,54 +684,54 @@
 (!line 868)(!if (!not posn)
 (!do
 (!line 869)(!call syntaxerror "= expected")))
-(!line 871)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 872)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 873)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!loop ")
-(!line 874)(!assign (!index buffer (!add (!len1 buffer) 1)) name)
-(!line 875)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 871)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 872)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 873)(!assign (!index buffer (!add (!len buffer) 1)) ")(!loop ")
+(!line 874)(!assign (!index buffer (!add (!len buffer) 1)) name)
+(!line 875)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 876)(!assign pos (!call skip_ws s posn))
 (!line 877)(!assign pos (!call expr s pos buffer !true))
 (!line 878)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 879)(!if (!not posn)
 (!do
 (!line 880)(!call syntaxerror ", expected")))
-(!line 882)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 882)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 883)(!assign pos (!call skip_ws s posn))
 (!line 884)(!assign pos (!call expr s pos buffer !true))
 (!line 885)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 886)(!if posn
 (!do
-(!line 887)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 887)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 888)(!assign pos (!call skip_ws s posn))
 (!line 889)(!assign pos (!call expr s pos buffer !true)))(!do
-(!line 891)(!assign (!index buffer (!add (!len1 buffer) 1)) " 1 ")))
+(!line 891)(!assign (!index buffer (!add (!len buffer) 1)) " 1 ")))
 (!line 893)(!return (!call forbody s pos buffer name))))
 
 (!line 897)(!define forlist)(!assign forlist (!lambda (s pos buffer name1)
-(!line 899)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 900)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 901)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!for (")
-(!line 902)(!assign (!index buffer (!add (!len1 buffer) 1)) name1)
+(!line 899)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 900)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 901)(!assign (!index buffer (!add (!len buffer) 1)) ")(!for (")
+(!line 902)(!assign (!index buffer (!add (!len buffer) 1)) name1)
 (!line 903)(!define (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 904)(!while posn
 
-(!line 905)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 905)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 906)(!assign pos (!call skip_ws s posn))
 (!line 907)(!define (capt posnn) ((!callmeth capt_identifier match s pos)))
 (!line 908)(!if (!not posnn)
 (!do
 (!line 909)(!call syntaxerror "<name> expected")))
-(!line 911)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
+(!line 911)(!assign (!index buffer (!add (!len buffer) 1)) capt)
 (!line 912)(!assign pos (!call skip_ws s posnn))
 (!line 913)(!massign (capt posn) ((!callmeth capt_comma match s pos))))
 (!line 915)(!massign (capt posn) ((!callmeth capt_in match s pos)))
 (!line 916)(!if (!not posn)
 (!do
 (!line 917)(!call syntaxerror "in expected")))
-(!line 919)(!assign (!index buffer (!add (!len1 buffer) 1)) ") (")
+(!line 919)(!assign (!index buffer (!add (!len buffer) 1)) ") (")
 (!line 920)(!assign pos (!call skip_ws s posn))
 (!line 921)(!assign pos (!call explist s pos buffer))
-(!line 922)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 922)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 923)(!return (!call forbody s pos buffer))))
 
 (!line 927)(!define forstat)(!assign forstat (!lambda (s pos buffer)
@@ -763,23 +762,23 @@
 (!do
 (!line 957)(!massign (capt posn) ((!callmeth capt_elseif match s pos)))
 (!line 958)(!call assert posn)))
-(!line 960)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!if ")
+(!line 960)(!assign (!index buffer (!add (!len buffer) 1)) "(!if ")
 (!line 961)(!assign pos (!call skip_ws s posn))
 (!line 962)(!assign pos (!call expr s pos buffer !true))
-(!line 963)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A")
+(!line 963)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A")
 (!line 964)(!assign pos (!call skip_ws s pos))
 (!line 965)(!massign (capt posn) ((!callmeth capt_then match s pos)))
 (!line 966)(!if (!not posn)
 (!do
 (!line 967)(!call syntaxerror "then expected")))
-(!line 969)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!do")
+(!line 969)(!assign (!index buffer (!add (!len buffer) 1)) "(!do")
 (!line 970)(!assign pos (!call skip_ws s posn))
 (!line 971)(!return (!call block s pos buffer))))
 
 (!line 974)(!define ifstat)(!assign ifstat (!lambda (s pos buffer)
-(!line 976)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 977)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 978)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 976)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 977)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 978)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 979)(!assign pos (!call test_then_block s pos buffer))
 (!line 980)(!define n 1)
 (!line 981)(!while (!callmeth1 tok_elseif match s pos)
@@ -789,7 +788,7 @@
 (!line 985)(!define (capt posn) ((!callmeth capt_else match s pos)))
 (!line 986)(!if posn
 (!do
-(!line 987)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!do")
+(!line 987)(!assign (!index buffer (!add (!len buffer) 1)) "(!do")
 (!line 988)(!assign pos (!call skip_ws s posn))
 (!line 989)(!assign pos (!call block s pos buffer))))
 (!line 991)(!massign (capt posn) ((!callmeth capt_end match s pos)))
@@ -798,7 +797,7 @@
 (!line 993)(!call syntaxerror "end expected")))
 (!line 995)(!loop i 1 n 1
 (!define i i)
-(!line 996)(!assign (!index buffer (!add (!len1 buffer) 1)) ")"))
+(!line 996)(!assign (!index buffer (!add (!len buffer) 1)) ")"))
 (!line 998)(!return posn)))
 
 (!line 1002)(!define localfunc)(!assign localfunc (!lambda (s pos buffer)
@@ -809,22 +808,22 @@
 (!line 1007)(!if (!not posn)
 (!do
 (!line 1008)(!call syntaxerror "<name> expected")))
-(!line 1010)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1011)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1012)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!define ")
-(!line 1013)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
-(!line 1014)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!assign ")
-(!line 1015)(!assign (!index buffer (!add (!len1 buffer) 1)) capt)
-(!line 1016)(!assign (!index buffer (!add (!len1 buffer) 1)) " (!lambda ")
+(!line 1010)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1011)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1012)(!assign (!index buffer (!add (!len buffer) 1)) ")(!define ")
+(!line 1013)(!assign (!index buffer (!add (!len buffer) 1)) capt)
+(!line 1014)(!assign (!index buffer (!add (!len buffer) 1)) ")(!assign ")
+(!line 1015)(!assign (!index buffer (!add (!len buffer) 1)) capt)
+(!line 1016)(!assign (!index buffer (!add (!len buffer) 1)) " (!lambda ")
 (!line 1017)(!assign pos (!call skip_ws s posn))
 (!line 1018)(!assign pos (!call body s pos buffer))
-(!line 1019)(!assign (!index buffer (!add (!len1 buffer) 1)) ")\x0A")
+(!line 1019)(!assign (!index buffer (!add (!len buffer) 1)) ")\x0A")
 (!line 1020)(!return pos)))
 
 (!line 1024)(!define localstat)(!assign localstat (!lambda (s pos buffer)
-(!line 1026)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1027)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1028)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!define ")
+(!line 1026)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1027)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1028)(!assign (!index buffer (!add (!len buffer) 1)) ")(!define ")
 (!line 1029)(!define multi !false)
 (!line 1030)(!define (capt posn))
 (!line 1031)(!repeat
@@ -833,7 +832,7 @@
 (!do
 (!line 1034)(!call syntaxerror "<name> expected")))
 (!line 1036)(!define ident capt)
-(!line 1037)(!assign (!index buffer (!add (!len1 buffer) 1)) ident)
+(!line 1037)(!assign (!index buffer (!add (!len buffer) 1)) ident)
 (!line 1038)(!assign pos (!call skip_ws s posn))
 (!line 1039)(!massign (capt posn) ((!callmeth capt_comma match s pos)))
 (!line 1040)(!if posn
@@ -841,27 +840,27 @@
 (!line 1041)(!if (!not multi)
 (!do
 (!line 1042)(!assign multi !true)
-(!line 1043)(!assign (!index buffer (!len1 buffer)) "(")
-(!line 1044)(!assign (!index buffer (!add (!len1 buffer) 1)) ident)))
-(!line 1046)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 1043)(!assign (!index buffer (!len buffer)) "(")
+(!line 1044)(!assign (!index buffer (!add (!len buffer) 1)) ident)))
+(!line 1046)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 1047)(!assign pos (!call skip_ws s posn))))
 (!not posn))
 (!line 1050)(!if multi
 (!do
-(!line 1051)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")))
+(!line 1051)(!assign (!index buffer (!add (!len buffer) 1)) ")")))
 (!line 1053)(!massign (capt posn) ((!callmeth capt_equal match s pos)))
 (!line 1054)(!if posn
 (!do
-(!line 1055)(!assign (!index buffer (!add (!len1 buffer) 1)) " ")
+(!line 1055)(!assign (!index buffer (!add (!len buffer) 1)) " ")
 (!line 1056)(!if multi
 (!do
-(!line 1057)(!assign (!index buffer (!add (!len1 buffer) 1)) "(")))
+(!line 1057)(!assign (!index buffer (!add (!len buffer) 1)) "(")))
 (!line 1059)(!assign pos (!call skip_ws s posn buffer))
 (!line 1060)(!assign pos (!call explist s pos buffer))
 (!line 1061)(!if multi
 (!do
-(!line 1062)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")))))
-(!line 1065)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 1062)(!assign (!index buffer (!add (!len buffer) 1)) ")")))))
+(!line 1065)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 1066)(!return pos)))
 
 (!line 1070)(!define funcname)(!assign funcname (!lambda (s pos buffer)
@@ -873,35 +872,35 @@
 (!line 1077)(!assign posn (!callmeth tok_dot match s pos))
 (!line 1078)(!while posn
 
-(!line 1079)(!define buf (!nil "(!index " exp " "))
+(!line 1079)(!define buf ("(!index " exp " "))
 (!line 1080)(!assign pos (!call fieldsel s pos buf))
-(!line 1081)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 1081)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 1082)(!assign exp (!call tconcat buf))
 (!line 1083)(!assign pos (!call skip_ws s pos))
 (!line 1084)(!assign posn (!callmeth tok_dot match s pos)))
 (!line 1086)(!assign posn (!callmeth tok_colon match s pos))
 (!line 1087)(!if posn
 (!do
-(!line 1088)(!define buf (!nil "(!index " exp " "))
+(!line 1088)(!define buf ("(!index " exp " "))
 (!line 1089)(!assign pos (!call fieldsel s pos buf))
-(!line 1090)(!assign (!index buf (!add (!len1 buf) 1)) ")")
+(!line 1090)(!assign (!index buf (!add (!len buf) 1)) ")")
 (!line 1091)(!assign exp (!call tconcat buf))
 (!line 1092)(!assign pos (!call skip_ws s pos))))
-(!line 1094)(!assign (!index buffer (!add (!len1 buffer) 1)) exp)
+(!line 1094)(!assign (!index buffer (!add (!len buffer) 1)) exp)
 (!line 1095)(!return pos posn)))
 
 (!line 1099)(!define funcstat)(!assign funcstat (!lambda (s pos buffer)
 (!line 1101)(!define (capt posn) ((!callmeth capt_function match s pos)))
 (!line 1102)(!call assert posn)
 (!line 1103)(!assign pos (!call skip_ws s posn))
-(!line 1104)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1105)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1106)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!assign ")
+(!line 1104)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1105)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1106)(!assign (!index buffer (!add (!len buffer) 1)) ")(!assign ")
 (!line 1107)(!define (posn ismethod) ((!call funcname s pos buffer)))
-(!line 1108)(!assign (!index buffer (!add (!len1 buffer) 1)) " (!lambda ")
+(!line 1108)(!assign (!index buffer (!add (!len buffer) 1)) " (!lambda ")
 (!line 1109)(!assign pos (!call skip_ws s posn))
 (!line 1110)(!assign pos (!call body s pos buffer ismethod))
-(!line 1111)(!assign (!index buffer (!add (!len1 buffer) 1)) ")\x0A")
+(!line 1111)(!assign (!index buffer (!add (!len buffer) 1)) ")\x0A")
 (!line 1112)(!return pos)))
 
 (!line 1116)(!define exprstat)(!assign exprstat (!lambda (s pos buffer)
@@ -911,22 +910,22 @@
 (!line 1121)(!assign pos (!call skip_ws s pos))
 (!line 1122)(!if (!or (!callmeth1 tok_equal match s pos) (!callmeth tok_comma match s pos))
 (!do
-(!line 1123)(!assign (!index buffer (!add (!len1 buffer) 1)) (!call tconcat buf))
+(!line 1123)(!assign (!index buffer (!add (!len buffer) 1)) (!call tconcat buf))
 (!line 1124)(!return (!call assignment s pos buffer 1)))(!do
-(!line 1126)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1127)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1128)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
-(!line 1129)(!assign (!index buffer (!add (!len1 buffer) 1)) (!call tconcat buf))
+(!line 1126)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1127)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1128)(!assign (!index buffer (!add (!len buffer) 1)) ")")
+(!line 1129)(!assign (!index buffer (!add (!len buffer) 1)) (!call tconcat buf))
 (!line 1130)(!return pos)))))
 
 (!line 1135)(!define retstat)(!assign retstat (!lambda (s pos buffer)
-(!line 1137)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1138)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1139)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!return ")
+(!line 1137)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1138)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1139)(!assign (!index buffer (!add (!len buffer) 1)) ")(!return ")
 (!line 1140)(!if (!and (!not (!call block_follow s pos !true)) (!not (!callmeth tok_semicolon match s pos)))
 (!do
 (!line 1141)(!assign pos (!call explist s pos buffer))))
-(!line 1143)(!assign (!index buffer (!add (!len1 buffer) 1)) ")")
+(!line 1143)(!assign (!index buffer (!add (!len buffer) 1)) ")")
 (!line 1144)(!define (capt posn) ((!callmeth capt_semicolon match s pos)))
 (!line 1145)(!if posn
 (!do
@@ -948,9 +947,9 @@
 (!line 1168)(!massign (capt posn) ((!callmeth capt_do match s pos)))
 (!line 1169)(!if posn
 (!do
-(!line 1170)(!assign (!index buffer (!add (!len1 buffer) 1)) "(!line ")
-(!line 1171)(!assign (!index buffer (!add (!len1 buffer) 1)) lineno)
-(!line 1172)(!assign (!index buffer (!add (!len1 buffer) 1)) ")(!do")
+(!line 1170)(!assign (!index buffer (!add (!len buffer) 1)) "(!line ")
+(!line 1171)(!assign (!index buffer (!add (!len buffer) 1)) lineno)
+(!line 1172)(!assign (!index buffer (!add (!len buffer) 1)) ")(!do")
 (!line 1173)(!assign pos (!call block s posn buffer))
 (!line 1174)(!massign (capt posn) ((!callmeth capt_end match s pos)))
 (!line 1175)(!if posn
@@ -999,12 +998,12 @@
 (!line 1232)(!define pos (!or (!callmeth (!mul bom (!call Cp )) match s 1) 1))
 (!line 1233)(!assign pos (!or (!callmeth (!mul shebang (!call Cp )) match s pos) pos))
 (!line 1234)(!assign lineno 1)
-(!line 1235)(!define buffer (!nil "(!line " (!call quote fname) " " lineno ")"))
+(!line 1235)(!define buffer ("(!line " (!call quote fname) " " lineno ")"))
 (!line 1236)(!assign pos (!call statlist s pos buffer))
 (!line 1237)(!if (!not (!callmeth (!call P (!neg 1)) match s pos))
 (!do
 (!line 1238)(!call syntaxerror (!concat "<eof> expected at " pos))))
-(!line 1240)(!assign (!index buffer (!add (!len1 buffer) 1)) "\x0A; end of generation")
+(!line 1240)(!assign (!index buffer (!add (!len buffer) 1)) "\x0A; end of generation")
 (!line 1241)(!return (!call tconcat buffer))))
 
 (!line 1244)(!assign (!index _G "_COMPILER") translate)

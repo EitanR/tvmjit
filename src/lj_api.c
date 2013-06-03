@@ -503,25 +503,7 @@ LUA_API size_t lua_objlen(lua_State *L, int idx)
   if (tvisstr(o)) {
     return strV(o)->len;
   } else if (tvistab(o)) {
-    return (size_t)lj_tab_len1(tabV(o));
-  } else if (tvisudata(o)) {
-    return udataV(o)->len;
-  } else if (tvisnumber(o)) {
-    GCstr *s = lj_str_fromnumber(L, o);
-    setstrV(L, o, s);
-    return s->len;
-  } else {
-    return 0;
-  }
-}
-
-LUA_API size_t lua_objlen0(lua_State *L, int idx)
-{
-  TValue *o = index2adr(L, idx);
-  if (tvisstr(o)) {
-    return strV(o)->len;
-  } else if (tvistab(o)) {
-    return (size_t)lj_tab_len0(tabV(o));
+    return (size_t)lj_tab_len(tabV(o));
   } else if (tvisudata(o)) {
     return udataV(o)->len;
   } else if (tvisnumber(o)) {

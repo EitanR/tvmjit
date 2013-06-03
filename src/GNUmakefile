@@ -14,7 +14,7 @@
 ##############################################################################
 
 MAJVER=  0
-MINVER=  0
+MINVER=  1
 RELVER=  1
 ABIVER=  5.1
 NODOTABIVER= 51
@@ -683,7 +683,7 @@ $(TVMJIT_T): $(TARGET_O) $(TVMJIT_O) $(TARGET_DEP)
 
 RUN_TVMJIT := ./$(TVMJIT_T)
 
-lua/lunokhod.h: lua/lunokhod.lua
+lunokhod.h: lua/lunokhod.lua
 	$(E) "GEN     $@"
 	$(Q)$(RUN_TVMJIT) -b lua/lunokhod.lua lunokhod.h
 

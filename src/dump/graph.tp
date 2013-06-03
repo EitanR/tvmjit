@@ -10,7 +10,7 @@
 (!let tostring tostring)
 (!let type type)
 (!let quote (!index tvm "quote"))
-(!let tconcat (!index tvm "concat"))
+(!let tconcat (!index table "concat"))
 
 
 (!let dumpers (!call setmetatable () ("__index": (!lambda (t k)
@@ -37,18 +37,18 @@
                 (!cond ((!not varname)
                         (!assign (!index buffer "i") (!add (!index buffer "i") 1))
                         (!assign varname (!concat "VAL" (!index buffer "i")))
-                        (!assign (!index buffer (!len buffer)) (!mconcat "(!let " varname " ())\n")))
+                        (!assign (!index buffer (!add (!len buffer) 1)) (!mconcat "(!let " varname " ())\n")))
                        (!true
-                        (!assign (!index buffer (!len buffer)) (!mconcat "(!assign " varname " ())\n"))))
+                        (!assign (!index buffer (!add (!len buffer) 1)) (!mconcat "(!assign " varname " ())\n"))))
                 (!assign (!index saved tbl) varname)
                 (!for (k v) ((!call pairs tbl))
                         (!let kname (!mconcat "(!index " varname " " (!call (!index dumpers (!call1 type k)) k !nil saved buffer) ")"))
                         (!let vname (!call (!index dumpers (!call1 type v)) v kname saved buffer))
-                        (!assign (!index buffer (!len buffer)) (!mconcat "(!assign " kname " " vname ")\n")))
+                        (!assign (!index buffer (!add (!len buffer) 1)) (!mconcat "(!assign " kname " " vname ")\n")))
                 (!return varname)))
 
 (!return (!lambda (data)
                 (!let buffer ("i": 0))
                 (!let varname (!call (!index dumpers (!call1 type data)) data !nil () buffer))
-                (!assign (!index buffer (!len buffer)) (!mconcat "(!return " varname ")"))
+                (!assign (!index buffer (!add (!len buffer) 1)) (!mconcat "(!return " varname ")"))
                 (!return (!call tconcat buffer))))

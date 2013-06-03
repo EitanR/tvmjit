@@ -8,8 +8,8 @@
 (!call print "1..8")
 
 (!define a ("ok 1" "ok 2" "ok 3"))
-(!call print (!index a 0))
-(!define i 1)
+(!call print (!index a 1))
+(!define i 2)
 (!call print (!index a i))
 (!call print (!index a (!add i 1)))
 (!if (!eq (!len a) 3)

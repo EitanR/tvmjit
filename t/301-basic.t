@@ -180,12 +180,12 @@ end\
 
 (!define t ("a" "b" "c"))
 (!define a (!call next t !nil))
-(!call is a 0 "function next (array)")
-(!define a (!call next t 0))
-(!call is a 1)
+(!call is a 1 "function next (array)")
 (!define a (!call next t 1))
 (!call is a 2)
 (!define a (!call next t 2))
+(!call is a 3)
+(!define a (!call next t 3))
 (!call is a !nil)
 
 (!call error_contains (!lambda () (!assign a (!call next)))
@@ -197,11 +197,11 @@ end\
                       "function next (invalid key)")
 
 (!define t ("a" "b" "c"))
-(!define a (!call next t 1))
-(!call is a 2 "function next (unorderer)")
-(!define a (!call next t 0))
-(!call is a 1)
 (!define a (!call next t 2))
+(!call is a 3 "function next (unorderer)")
+(!define a (!call next t 1))
+(!call is a 2)
+(!define a (!call next t 3))
 (!call is a !nil)
 
 (!define t ())
@@ -214,11 +214,11 @@ end\
 (!call type_ok v "table")
 (!call is s !nil)
 (!define s (!call f v s))
-(!call is s 0)
-(!define s (!call f v s))
 (!call is s 1)
 (!define s (!call f v s))
 (!call is s 2)
+(!define s (!call f v s))
+(!call is s 3)
 (!define s (!call f v s))
 (!call is s !nil)
 
@@ -253,7 +253,7 @@ end\
 (!call is (!call rawequal print 2) !false)
 
 (!call is (!call rawlen "text") 4 "function rawlen (string)")
-(!call is (!call rawlen (!nil "a" "b" "c")) 3 "function rawlen (table)")
+(!call is (!call rawlen ("a" "b" "c")) 3 "function rawlen (table)")
 (!call error_contains (!lambda () (!assign a (!call rawlen !true)))
                       ": bad argument #1 to 'rawlen' (table expected, got boolean)"
                       "function rawlen with bad arg")

@@ -120,7 +120,7 @@
 ;   multiple inheritance
 ; look up for 'k' in list of tables 'plist'
 (!let search (!lambda (k plist)
-                (!loop i 0 (!sub (!len plist) 1) 1
+                (!loop i 1 (!len plist) 1
                         (!let v (!index (!index plist i) k))    ; try 'i'-th superclass
                         (!if v (!return v)))))
 
@@ -164,7 +164,7 @@
 ;   multiple inheritance (patched)
 ; look up for 'k' in list of tables 'plist'
 (!let search (!lambda (k plist)
-                (!loop i 0 (!sub (!len plist) 1) 1
+                (!loop i 1 (!len plist) 1
                         (!let v (!index (!index plist i) k))   ; try 'i'-th superclass
                         (!if v (!return v)))))
 

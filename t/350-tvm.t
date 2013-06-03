@@ -12,8 +12,6 @@
 (!let escape (!index tvm "escape"))
 (!let quote (!index tvm "quote"))
 (!let wchar (!index tvm "wchar"))
-(!let concat (!index tvm "concat"))
-(!let unpack (!index tvm "unpack"))
 (!let dofile (!index tvm "dofile"))
 (!let load (!index tvm "load"))
 (!let loadfile (!index tvm "loadfile"))
@@ -25,9 +23,9 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 59)
+(!call plan 44)
 
-(!call contains (!index tvm "_VERSION") "TvmJIT 0.0.1" "variable _VERSION")
+(!call contains (!index tvm "_VERSION") "TvmJIT 0.1.1" "variable _VERSION")
 
 (!call is (!call escape "a(b:c)d e") "a\\(b\\:c\\)d\\ e")
 
@@ -51,35 +49,6 @@
 (!call error_contains (!lambda () (!call wchar 0 999999))
                       ": bad argument #2 to 'wchar' (invalid value)"
                       "function wchar (invalid)")
-
-
-(!define t ("a" "b" "c" "d" "e"))
-(!call is (!call concat t) "abcde" "function concat")
-(!call is (!call concat t ",") "a,b,c,d,e")
-(!call is (!call concat t "," 1) "b,c,d,e")
-(!call is (!call concat t "," 1 3) "b,c,d")
-(!call is (!call concat t "," 3 1) "")
-
-(!define t ("a" "b" 3 "d" "e"))
-(!call is (!call concat t ",") "a,b,3,d,e" "function concat (number)")
-
-(!define t ("a" "b" "c" "d" "e"))
-(!call error_contains (!lambda () (!call concat t "," 1 6))
-                      ": invalid value (nil) at index 5 in table for 'concat'"
-                      "function concat (out of range)")
-
-(!define t ("a" "b" !true "d" "e"))
-(!call error_contains (!lambda () (!call concat t ","))
-                      ": invalid value (boolean) at index 2 in table for 'concat'"
-                      "function concat (non-string)")
-
-(!call eq_array ((!call unpack ())) () "function unpack")
-(!call eq_array ((!call unpack ("a"))) ("a"))
-(!call eq_array ((!call unpack ("a" "b" "c"))) ("a" "b" "c"))
-(!call eq_array ((!call1 unpack ("a" "b" "c"))) ("a"))
-(!call eq_array ((!call unpack ("a" "b" "c" "d" "e") 1 3)) ("b" "c" "d"))
-(!call eq_array ((!call unpack ("a" "b" "c") 1 3)) ("b" "c"))
-(!call eq_array ((!call unpack)) ())
 
 
 (!define f (!call open "lib1.tp" "w"))
@@ -113,7 +82,7 @@
 (!assign bar (!lambda (x)\
                 (!return x)))\
 "))
-(!assign i -1)
+(!assign i 0)
 (!let reader (!lambda ()
                 (!assign i (!add i 1))
                 (!return (!index t i))))
@@ -130,7 +99,7 @@
 (!assign baz (!lambda (x)\
                 (!return x)))\
 "))
-(!assign i -2)
+(!assign i -1)
 (!let reader (!lambda ()
                 (!assign i (!add i 1))
                 (!return (!index t i))))
@@ -141,7 +110,7 @@
 (!call is baz !nil)
 
 (!assign t ("?syntax error?"))
-(!assign i -1)
+(!assign i 0)
 (!define (f msg) ((!call load reader "errorchunk")))
 (!call is f !nil "function load(syntax error)")
 (!call contains msg "[string \"errorchunk\"]:")

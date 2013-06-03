@@ -10,7 +10,7 @@
 (!call (!index tvm "dofile") "TAP.tp")
 
 (!let load (!index tvm "load"))
-(!let tconcat (!index tvm "concat"))
+(!let tconcat (!index table "concat"))
 (!let plan plan)
 (!let is is)
 (!let contains contains)
@@ -21,7 +21,7 @@
 ;   add
 (!let add (!lambda (a)
                 (!define sum 0)
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                       (!let v (!index a i))
                       (!assign sum (!add sum v)))
                 (!return sum)))
@@ -53,9 +53,9 @@
 
 ;   maximum
 (!let maximum (!lambda (a)
-                (!define mi 0)                  ; maximum index
+                (!define mi 1)                  ; maximum index
                 (!define m (!index a mi))       ; maximum value
-                (!loop i 0 (!sub (!len a) 1) 1
+                (!loop i 1 (!len a) 1
                       (!let val (!index a i))
                       (!if (!gt val m)
                            (!do (!assign mi i)
@@ -64,7 +64,7 @@
 
 (!define (m mi) ((!call maximum (8 10 23 12 5))))
 (!call is m 23 "maximum")
-(!call is mi 2)
+(!call is mi 3)
 
 ;   call by value
 (!let f (!lambda (n)
@@ -82,7 +82,7 @@
 
 ;   call by ref
 (!let f (!lambda (t)
-                (!assign (!index t (!len t)) "end")
+                (!assign (!index t (!add (!len t) 1)) "end")
                 (!return t)))
 
 (!define a ("a" "b" "c"))
@@ -97,7 +97,7 @@
                 (!call is a 3 "vararg")
                 (!call is b !nil)
                 (!call is (!len arg) 0)
-                (!call is (!index arg 0) !nil)))
+                (!call is (!index arg 1) !nil)))
 (!call g 3)
 
 (!let g (!lambda (a b !vararg)
@@ -105,7 +105,7 @@
                 (!call is a 3)
                 (!call is b 4)
                 (!call is (!len arg) 0)
-                (!call is (!index arg 0) !nil)))
+                (!call is (!index arg 1) !nil)))
 (!call g 3 4)
 
 (!let g (!lambda (a b !vararg)
@@ -113,8 +113,8 @@
                 (!call is a 3)
                 (!call is b 4)
                 (!call is (!len arg) 2)
-                (!call is (!index arg 0) 5)
-                (!call is (!index arg 1) 8)))
+                (!call is (!index arg 1) 5)
+                (!call is (!index arg 2) 8)))
 (!call g 3 4 5 8)
 
 ;   var args
@@ -187,7 +187,7 @@
 ;   tail call
 (!define output ())
 (!letrec foo (!lambda (n)
-                (!assign (!index output (!len output)) n)
+                (!assign (!index output (!add (!len output) 1)) n)
                 (!if (!gt n 0)
                      (!return (!call foo (!sub n 1))))
                 (!return "end" 0)))
@@ -198,7 +198,7 @@
 ;   no tail call
 (!define output ())
 (!letrec foo (!lambda (n)
-                (!assign (!index output (!len output)) n)
+                (!assign (!index output (!add (!len output) 1)) n)
                 (!if (!gt n 0)
                      (!return (!call1 foo (!sub n 1))))
                 (!return "end" 0)))
@@ -209,7 +209,7 @@
 ;   no tail call
 (!define output ())
 (!letrec foo (!lambda (n)
-                (!assign (!index output (!len output)) n)
+                (!assign (!index output (!add (!len output) 1)) n)
                 (!if (!gt n 0)
                      (!call foo (!sub n 1)))))
 

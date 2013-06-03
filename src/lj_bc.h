@@ -94,8 +94,7 @@
   _(MOV,	dst,	___,	var,	___) \
   _(NOT,	dst,	___,	var,	___) \
   _(UNM,	dst,	___,	var,	unm) \
-  _(LEN0,	dst,	___,	var,	len) \
-  _(LEN1,	dst,	___,	var,	len) \
+  _(LEN,	dst,	___,	var,	len) \
   \
   /* Binary ops. ORDER OPR. VV last, POW must be next. */ \
   _(ADDVN,	dst,	var,	num,	add) \
