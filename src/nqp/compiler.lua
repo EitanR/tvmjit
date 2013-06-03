@@ -856,7 +856,6 @@ how.add_method(op, 'as_op', function (self, want)
                     local args = top:new{}
                     for i = (name and 1 or 2), #self do
                         local v = self[i]
-                        v:reset'lineno'
                         local named = v:named()
                         if named then
                             args:addkv(named, v:as_op())
@@ -870,12 +869,10 @@ how.add_method(op, 'as_op', function (self, want)
                         ops:push(top:new{ '!line', lineno })
                     end
                     local obj = assert(self[1])
-                    obj:reset'lineno'
                     obj = obj:as_op()
                     local args = top:new{}
                     for i = (name and 2 or 3), #self do
                         local v = self[i]
-                        v:reset'lineno'
                         local named = v:named()
                         if named then
                             args:addkv(named, v:as_op())
@@ -981,7 +978,6 @@ how.add_method(op, 'as_op', function (self, want)
                     local op1 = top:new{ '!return' }
                     for i = 1, #self do
                         local v = self[i]
-                        v:reset'lineno'
                         op1:push(v:as_op())
                     end
                     ops:push(op1)
@@ -990,14 +986,11 @@ how.add_method(op, 'as_op', function (self, want)
                         ops:push(top:new{ '!line', lineno })
                     end
                     local expr1 = assert(self[1])
-                    expr1:reset'lineno'
                     local expr2 = assert(self[2])
-                    expr2:reset'lineno'
                     local op1 = top:new{ '!let', expr1:as_op(), expr2:as_op() }
                     ops:push(op1)
                 elseif op == 'op' then
                     local expr1 = assert(self[1])
-                    expr1:reset'lineno'
                     local op1, returns
                     if     name == '&prefix:<~>' then
                         op1 = expr1:as_op'str'
@@ -1016,125 +1009,101 @@ how.add_method(op, 'as_op', function (self, want)
                         returns = 'bool'
                     elseif name == '&infix:<==>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!eq', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<!=>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!ne', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<eq>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!eq', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<ne>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!ne', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<=:=>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!call', 'rawequal', expr1:as_op(), expr2:as_op() }
                         returns = 'bool'
                     elseif name == '&infix:<+>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!add', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<->' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!sub', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<*>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!mul', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:</>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!div', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<%>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!mod', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<~>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!concat', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'str'
                     elseif name == '&infix:<<>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!lt', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<<=>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!le', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<>>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!gt', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<>=>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!ge', expr1:as_op'num', expr2:as_op'num' }
                         returns = 'bool'
                     elseif name == '&infix:<lt>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!lt', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<le>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!le', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<gt>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!gt', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<ge>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!ge', expr1:as_op'str', expr2:as_op'str' }
                         returns = 'bool'
                     elseif name == '&infix:<+|>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!call', top:new{ '!index', 'bit', quote'bor' },
                                                 expr1:as_op'num',
                                                 expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<+&>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!call', top:new{ '!index', 'bit', quote'band' },
                                                 expr1:as_op'num',
                                                 expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<+^>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!call', top:new{ '!index', 'bit', quote'bxor' },
                                                 expr1:as_op'num',
                                                 expr2:as_op'num' }
                         returns = 'num'
                     elseif name == '&infix:<?? !!>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         local expr3 = assert(self[3])
-                        expr3:reset'lineno'
                         op1 = top:new{ '!or', top:new{ '!and', expr1:as_op'bool',
                                                                expr2:as_op() },
                                               expr3:as_op() }
@@ -1144,7 +1113,6 @@ how.add_method(op, 'as_op', function (self, want)
                         op1 = top:new{ '!callmeth1', expr1:as_op(), '_postdecr' }
                     elseif name == '&infix:<//>' then
                         local expr2 = assert(self[2])
-                        expr2:reset'lineno'
                         op1 = top:new{ '!or', top:new{ '!and', top:new{ '!callmeth', expr1:as_op(), 'defined' },
                                                                expr1:as_op() },
                                               expr2:as_op() }
@@ -1153,7 +1121,6 @@ how.add_method(op, 'as_op', function (self, want)
                             ops:push(top:new{ '!line', lineno })
                         end
                         local expr2 = self[2]
-                        expr2:reset'lineno'
                         if expr1:decl() then
                             ops:push(expr1:as_op())
                             expr1:reset'decl'

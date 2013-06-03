@@ -2687,6 +2687,7 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 	  break;
 	case SP_line:
 	  parse_line(ls);
+	  expr(ls, v);
 	  break;
 	case SP_loop:
 	  parse_loop(ls);
