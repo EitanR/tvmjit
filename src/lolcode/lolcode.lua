@@ -5,6 +5,7 @@
 
 local load = tvm.load
 local dofile = tvm.dofile
+local unpack = unpack
 
 arg = {}
 local compiler = dofile 'lolcode/translator.tp'
@@ -26,7 +27,7 @@ local function handle_script (argv, script)
         fh:close()
     end
     local code = compiler(chunk, '@' .. fname)
-    assert(load(code, fname))(table.unpack(arg))
+    assert(load(code, fname))(unpack(arg))
 end
 
 local argv = {...}

@@ -11,6 +11,7 @@
 local dofile = tvm.dofile
 local load = tvm.load
 local tostring = tostring
+local unpack = unpack
 
 arg = {}
 local compiler = dofile 'nqp/compiler.tp'
@@ -47,7 +48,7 @@ local function handle_script (argv, script)
         if target == 'op' then
             print(code)
         else
-            assert(load(code, fname))(table.unpack(arg))
+            assert(load(code, fname))(unpack(arg))
         end
     end
 end

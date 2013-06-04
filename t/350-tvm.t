@@ -12,6 +12,7 @@
 (!let escape (!index tvm "escape"))
 (!let quote (!index tvm "quote"))
 (!let wchar (!index tvm "wchar"))
+(!let unpack (!index tvm "unpack"))
 (!let dofile (!index tvm "dofile"))
 (!let load (!index tvm "load"))
 (!let loadfile (!index tvm "loadfile"))
@@ -23,7 +24,7 @@
 (!let error_contains error_contains)
 (!let type_ok type_ok)
 
-(!call plan 44)
+(!call plan 51)
 
 (!call contains (!index tvm "_VERSION") "TvmJIT 0.1.1" "variable _VERSION")
 
@@ -49,6 +50,15 @@
 (!call error_contains (!lambda () (!call wchar 0 999999))
                       ": bad argument #2 to 'wchar' (invalid value)"
                       "function wchar (invalid)")
+
+
+(!call eq_array ((!call unpack ())) () "function unpack")
+(!call eq_array ((!call unpack ("a"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c"))) ("a" "b" "c"))
+(!call eq_array ((!call1 unpack ("a" "b" "c"))) ("a"))
+(!call eq_array ((!call unpack ("a" "b" "c" "d" "e") 2 4)) ("b" "c" "d"))
+(!call eq_array ((!call unpack ("a" "b" "c") 2 4)) ("b" "c"))
+(!call eq_array ((!call unpack)) ())
 
 
 (!define f (!call open "lib1.tp" "w"))

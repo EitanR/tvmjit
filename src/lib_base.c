@@ -215,12 +215,9 @@ LJLIB_CF(rawlen)		LJLIB_REC(.)
 
 LJLIB_CF(unpack)
 {
-  GCtab *t;
-  int32_t n, i, e;
-  if (tvisnil(L->base)) return 0;
-  t = lj_lib_checktab(L, 1);
-  i = lj_lib_optint(L, 2, 1);
-  e = (L->base+3-1 < L->top && !tvisnil(L->base+3-1)) ?
+  GCtab *t = lj_lib_checktab(L, 1);
+  int32_t n, i = lj_lib_optint(L, 2, 1);
+  int32_t e = (L->base+3-1 < L->top && !tvisnil(L->base+3-1)) ?
 	      lj_lib_checkint(L, 3) : (int32_t)lj_tab_len(t);
   if (i > e) return 0;
   n = e - i + 1;

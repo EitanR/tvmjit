@@ -10,6 +10,7 @@
 
 local dofile = tvm.dofile
 local load = tvm.load
+local unpack = unpack
 
 local compiler = _G._COMPILER
 
@@ -54,7 +55,7 @@ local function handle_script (argv, script)
         fh:close()
     end
     local code = compiler(chunk, '@' .. fname)
-    assert(load(code, fname))(table.unpack(arg))
+    assert(load(code, fname))(unpack(arg))
 end
 
 local function dotty ()

@@ -2237,7 +2237,7 @@ local prelude = [[
 (!let tonumber tonumber)
 (!let tostring tostring)
 (!let type type)
-(!let unpack (!index table "unpack"))
+(!let unpack (!index tvm "unpack"))
 (!let _G _G)
 (!assign (!index _G "_P6PKG") ())
 
@@ -3132,7 +3132,7 @@ local prelude = [[
 
 )
 
-(!let unpack (!index table "unpack"))
+(!let unpack (!index tvm "unpack"))
 (!let _PKG (!index _P6PKG "MAIN"))
 ]]
 
