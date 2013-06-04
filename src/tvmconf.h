@@ -29,11 +29,11 @@
 #define LUA_LDIR	LUA_ROOT "share/lua/5.1/"
 #define LUA_CDIR	LUA_ROOT "lib/lua/5.1/"
 #ifdef TVM_XROOT
-#define TVM_JDIR	TVM_XROOT "share/tvmjit-0.0.1/"
+#define TVM_JDIR	TVM_XROOT "share/tvmjit-0.1.1/"
 #define TVM_XPATH
 #define TVM_XCPATH	TVM_XROOT "lib/tvmjit/5.1/?.so;"
 #else
-#define TVM_JDIR	LUA_ROOT "share/tvmjit-0.0.1/"
+#define TVM_JDIR	LUA_ROOT "share/tvmjit-0.1.1/"
 #define TVM_XPATH
 #define TVM_XCPATH	LUA_ROOT "lib/tvmjit/5.1/?.so;"
 #endif
