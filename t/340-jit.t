@@ -16,8 +16,8 @@
 (!call type_ok (!index jit "off") "function" "function jit.off")
 (!call type_ok (!index jit "flush") "function" "function jit.flush")
 
-(!call is (!index jit "version") "LuaJIT 2.0.1" "jit.version")
-(!call is (!index jit "version_num") 20001 "jit.version_num")
+(!call is (!index jit "version") "LuaJIT 2.0.2" "jit.version")
+(!call is (!index jit "version_num") 20002 "jit.version_num")
 
 (!call type_ok (!index jit "os") "string" "jit.os")
 (!call type_ok (!index jit "arch") "string" "jit.arch")
