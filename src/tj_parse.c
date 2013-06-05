@@ -2206,24 +2206,24 @@ static void parse_massign(LexState *ls)
 }
 
 /* Parse 'assign' statement. */
-static void parse_assign(LexState *ls)
+static void parse_assign(LexState *ls, ExpDesc *e)
 {
-  ExpDesc v, e;
+  ExpDesc v;
   expr(ls, &v);
   checkcond(ls, VLOCAL <= v.k && v.k <= VINDEXED, LJ_ERR_XSYNTAX);
   checkfinal(ls, &v);
-  expr(ls, &e);
+  expr(ls, e);
   /* gen_setoneret(e) */
-  if (e.k == VCALL) {
-    if (bc_op(*bcptr(ls->fs, &e)) == BC_VARG) {  /* Vararg assignment. */
+  if (e->k == VCALL) {
+    if (bc_op(*bcptr(ls->fs, e)) == BC_VARG) {  /* Vararg assignment. */
       ls->fs->freereg--;
-      e.k = VRELOCABLE;
+      e->k = VRELOCABLE;
     } else {  /* Multiple call results. */
-      e.u.s.info = e.u.s.aux;  /* Base of call is not relocatable. */
-      e.k = VNONRELOC;
+      e->u.s.info = e->u.s.aux;  /* Base of call is not relocatable. */
+      e->k = VNONRELOC;
     }
   }
-  bcemit_store(ls->fs, &v, &e);
+  bcemit_store(ls->fs, &v, e);
   lex_check(ls, ')');
 }
 
@@ -2615,7 +2615,7 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 	  parse_binop(ls, sp, v);
 	  break;
 	case SP_assign:
-	  parse_assign(ls);
+	  parse_assign(ls, v);
 	  break;
 	case SP_break:
 	  parse_break(ls);

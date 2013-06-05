@@ -12,7 +12,7 @@
 (!let load load)
 (!let print print)
 
-(!call plan 35)
+(!call plan 38)
 
 (!call is b !nil "global variable")
 (!assign b 10)
@@ -37,7 +37,7 @@
 (!call is a 0 "check padding")
 (!call is b 1)
 (!call is c !nil)
-(!massign (a b) ((!add a 1) (!add b  1) (!add a b)))
+(!massign (a b) ((!add a 1) (!add b 1) (!add a b)))
 (!call is a 1)
 (!call is b 2)
 (!massign (a b c) (0))
@@ -92,3 +92,8 @@
 (!call is n3 2)
 (!call is n4 1)
 
+(!massign (a b c) (1 2 3))
+(!assign a (!assign b (!assign c (!mul b c))))
+(!call is a 6 "assignment as expression")
+(!call is b 6)
+(!call is b 6)
