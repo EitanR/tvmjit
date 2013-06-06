@@ -3,7 +3,9 @@ compiler: gcc
 
 # Tool setup.
 install:
-  - sudo apt-get install liblua5.1-lpeg2
+  - sudo apt-get install -qq luarocks
+  - sudo luarocks install lpeg
+  - sudo luarocks install linenoise
 
 # Build and test.
 script:
