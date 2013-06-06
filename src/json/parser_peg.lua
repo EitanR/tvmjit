@@ -87,7 +87,7 @@ local g = P {
                   * ((V'value_separator'
                     + Cmt(Cp() * -V'end_object', function (s, pos)
                                                     error("',' expected at " .. pos)
-                                                 end))
+                                                 end) * 1)
                    * V'member')^0)^-1
                  * V'end_object',
                    function (t, k, v)
@@ -110,7 +110,7 @@ local g = P {
                 * ((V'value_separator'
                   + Cmt(Cp() * -V'end_array', function (s, pos)
                                                     error("',' expected at " .. pos)
-                                              end))
+                                              end) * 1)
                  * V'value')^0)^-1
                * V'end_array'),
 
