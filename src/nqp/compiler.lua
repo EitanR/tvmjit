@@ -1798,6 +1798,7 @@ local priority = {
     ['//']    = { 2, 2 },
     ['||']    = { 2, 2 },
     [':=']    = { 1, 1 },
+    ['=']     = { 1, 1 },       -- fails in TVM::AST::Op.as_op()
 }
 
 how.add_method(parser, 'expr', function (self, limit)
