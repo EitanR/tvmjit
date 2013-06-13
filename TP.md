@@ -3,177 +3,187 @@
 
 ##
 
-### ; comment
+#### ; comment
 
-### number
+#### number
 
-### string
+    3.14
+    +.314e+1
+    .314e1
+    -31.4e-1
 
-### table
+#### string
+
+    "text"
+    "tab\t"
+    "quote\""
+    "\x3A"      ; hexadecimal 8-bits character
+    "\u20AC"    ; unicode char UTF-8 encoded
+
+#### table
 
     (1 4 9 16)
     (-100: "min" 100: "max")
     (0: "zero" "one")
     ("zero": 0 "one": 1)
 
-### identifier
+#### identifier
 
     Foo
     Foo-Bar
     Foo\:Bar
     Foo\(Bar\)
     Foo\ Bar
-    Foo$Bar
-    Foo%Bar
-    Foo@Bar
+    !Foo$Bar?
 
 
 
 ## Specials
 
-* !false
+#### `!false`
 
-* !nil
+#### `!nil`
 
-* !true
+#### `!true`
 
-* !vararg
+#### `!vararg`
 
-* (!assign var expr)
+#### `(!assign var expr)`
 
 assignment
 (could be used as expression, not like in Lua)
 
-* (!add expr1 expr2)
+#### `(!add expr1 expr2)`
 
 addition
 
-* (!and expr1 expr2)
+#### `(!and expr1 expr2)`
 
 logical and
 
-* (!break)
+#### `(!break)`
 
-* (!call fct prm1 ... prmn)
+#### `(!call fct prm1 ... prmn)`
 
-* (!call1 fct prm1 ... prmn )
+#### `(!call1 fct prm1 ... prmn)`
 
-* (!callmeth obj meth prm1 ... prmn)
+#### `(!callmeth obj meth prm1 ... prmn)`
 
-* (!callmeth1 obj meth prm1 ... prmn )
+#### `(!callmeth1 obj meth prm1 ... prmn)`
 
-* (!concat expr1 expr2)
+#### `(!concat expr1 expr2)`
 
 concatenation
 
-* (!cond (expr1 (stmt1 ... stmtm)) ... (exprn (stmt1 ... stmtm)))
+#### `(!cond (expr1 (stmt1 ... stmtm)) ... (exprn (stmt1 ... stmtm)))`
 
-* (!define var [expr])
+#### `(!define var [expr])` or `(!define (var1 ... varn) (expr1 ... exprm))`
 
-define a local variable
+define local variables
 
-* (!div expr1 expr2)
+#### `(!div expr1 expr2)`
 
 division
 
-* (!do stmt1 ... stmtn)
+#### `(!do stmt1 ... stmtn)`
 
 block
 
-* (!eq expr1 expr2)
+#### `(!eq expr1 expr2)`
 
 relational equal
 
-* (!for (var1 ... varn) (expr1 ... exprm) stmt1 ... stmtn)
+#### `(!for (var1 ... varn) (expr1 ... exprm) stmt1 ... stmtn)`
 
-* (!ge expr1 expr2)
+#### `(!ge expr1 expr2)`
 
 relational great or equal
 
-* (!goto lbl)
+#### `(!goto lbl)`
 
-* (!gt expr1 exrp2)
+#### `(!gt expr1 exrp2)`
 
 relational great than
 
-* (!if expr stmt-then [stmt-else])
+#### `(!if expr stmt-then [stmt-else])`
 
-* (!index var expr)
+#### `(!index var expr)`
 
-* (!label lbl)
+#### `(!label lbl)`
 
-* (!lambda (prm1 ... prmn) (stmt1 ... stmtn))
+#### `(!lambda (prm1 ... prmn) stmt1 ... stmtn)`
 
-* (!le expr1 expr2)
+#### `(!le expr1 expr2)`
 
 relational less or equal
 
-* (!len expr)
+#### `(!len expr)`
 
 length
 
-* (!let var expr)
+#### `(!let var expr)` or `(!let (var1 ... varn) (expr1 ... exprm))`
 
-define a local variable which could not be re-assigned
+define local variables which could not be re-assigned
 
-* (!letrec var expr)
+#### `(!letrec var expr)`
 
-* (!line "filename" lineno)
-* (!line lineno)
+define a local variable which could used in recursive call
+
+#### `(!line "filename" lineno)` or `(!line lineno)`
 
 annotation
 
-* (!loop init limit step stmt1 ... stmtn)
+#### `(!loop init limit step stmt1 ... stmtn)`
 
-* (!lt expr1 expr2)
+#### `(!lt expr1 expr2)`
 
 relational less then
 
-* (!massign (var1 ... varn) (expr1 ... exprm))
+#### `(!massign (var1 ... varn) (expr1 ... exprm))`
 
 multiple assignment
 
-* (!mconcat expr1 ... exprn)
+#### `(!mconcat expr1 ... exprn)`
 
 concatenation
 
-* (!mod expr1 expr2)
+#### `(!mod expr1 expr2)`
 
 modulo
 
-* (!mul expr1 expr2)
+#### `(!mul expr1 expr2)`
 
 multiplication
 
-* (!ne expr1 expr2)
+#### `(!ne expr1 expr2)`
 
 relational not equal
 
-* (!neg expr)
+#### `(!neg expr)`
 
 negation
 
-* (!not expr)
+#### `(!not expr)`
 
 logical not
 
-* (!or expr1 expr2)
+#### `(!or expr1 expr2)`
 
 logical or
 
-* (!pow expr1 expr2)
+#### `(!pow expr1 expr2)`
 
 exponentiation
 
-* (!repeat stmt1 ... stmtn expr)
+#### `(!repeat stmt1 ... stmtn expr)`
 
-* (!return expr1 ... exprn)
+#### `(!return expr1 ... exprn)`
 
-* (!sub expr1 expr2)
+#### `(!sub expr1 expr2)`
 
 subtraction
 
-* (!while expr stmt1 ... stmtn)
+#### `(!while expr stmt1 ... stmtn)`
 
 
 
@@ -181,32 +191,32 @@ subtraction
 
 In addition to the Lua standard libraries.
 
-* tvm.dofile ([filename])
+#### `tvm.dofile ([filename])`
 
 like `dofile` but for TP chunk.
 
-* tvm.escape (s)
+#### `tvm.escape (s)`
 
 returns a escaped string (`(`, `)`, `:`, and space) suitable to be safely read back by the TP interpreter.
 
-* tvm.load (ld [, source [, mode]])
+#### `tvm.load (ld [, source [, mode]])`
 
 like `load` (5.2) but for TP chunk (includes 5.1 `loadstring`).
 
-* tvm.loadfile (filename [, mode])
+#### `tvm.loadfile (filename [, mode])`
 
 like `loadfile` (5.2) but for TP chunk.
 
-* tvm.quote (s)
+#### `tvm.quote (s)`
 
-returns a quoted (and escaped) string suitable to be safely read back by the TP interpreter.
+returns a quoted string (not printable character are escaped) suitable to be safely read back by the TP interpreter.
 
-* tvm.unpack (list [, i [, j ]])
+#### `tvm.unpack (list [, i [, j ]])`
 
 `tvm.unpack` accept `nil` as parameter,
 so `tvm.unpack(t)` is equivalent to `unpack(t or {})`.
 
-* tvm.wchar (...)
+#### `tvm.wchar (...)`
 
 like `string.char` but returns a string which is the concatenation of the UTF-8 representation of each integer.
 
