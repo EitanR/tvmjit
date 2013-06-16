@@ -1,16 +1,25 @@
 
 # Table Processing
 
-##
+## Tokens
 
 #### ; comment
 
 #### number
 
+    0
+    42
+
     3.14
     +.314e+1
     .314e1
     -31.4e-1
+
+    0x7E
+    -0X7e
+
+    0x0.1E
+    0xA23p-4
 
 #### string
 
@@ -63,19 +72,31 @@ logical and
 
 #### `(!break)`
 
+break statement
+
 #### `(!call fct prm1 ... prmn)`
+
+function call
 
 #### `(!call1 fct prm1 ... prmn)`
 
+function call with results adjusted to 1
+
 #### `(!callmeth obj meth prm1 ... prmn)`
 
+method call
+
 #### `(!callmeth1 obj meth prm1 ... prmn)`
+
+method call with results adjusted to 1
 
 #### `(!concat expr1 expr2)`
 
 concatenation
 
 #### `(!cond (expr1 (stmt1 ... stmtm)) ... (exprn (stmt1 ... stmtm)))`
+
+cond statement
 
 #### `(!define var [expr])` or `(!define (var1 ... varn) (expr1 ... exprm))`
 
@@ -95,17 +116,23 @@ relational equal
 
 #### `(!for (var1 ... varn) (expr1 ... exprm) stmt1 ... stmtn)`
 
+for statement
+
 #### `(!ge expr1 expr2)`
 
 relational great or equal
 
 #### `(!goto lbl)`
 
+goto statement
+
 #### `(!gt expr1 exrp2)`
 
 relational great than
 
 #### `(!if expr stmt-then [stmt-else])`
+
+if statement
 
 #### `(!index var expr)`
 
@@ -125,7 +152,7 @@ length
 
 define local variables which could not be re-assigned
 
-#### `(!letrec var expr)`
+#### `(!letrec var lambda)`
 
 define a local variable which could used in recursive call
 
@@ -134,6 +161,8 @@ define a local variable which could used in recursive call
 annotation
 
 #### `(!loop init limit step stmt1 ... stmtn)`
+
+loop statement
 
 #### `(!lt expr1 expr2)`
 
@@ -177,13 +206,19 @@ exponentiation
 
 #### `(!repeat stmt1 ... stmtn expr)`
 
+repeat statement
+
 #### `(!return expr1 ... exprn)`
+
+return statement
 
 #### `(!sub expr1 expr2)`
 
 subtraction
 
 #### `(!while expr stmt1 ... stmtn)`
+
+while statement
 
 
 
