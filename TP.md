@@ -255,3 +255,79 @@ so `tvm.unpack(t)` is equivalent to `unpack(t or {})`.
 
 like `string.char` but returns a string which is the concatenation of the UTF-8 representation of each integer.
 
+## Homoiconicity
+
+An example of homoicon library :
+
+    $ cat homoicon.tp
+
+    (!let pairs pairs)
+    (!let setmetatable setmetatable)
+    (!let tostring tostring)
+    (!let type type)
+    (!let tconcat (!index table "concat"))
+
+    (!let op_mt ("__tostring": (!lambda (o)
+                    (!let t ())
+                    (!if (!index o 0)
+                         (!assign (!index t 1) (!concat "0: " (!call1 tostring (!index o 0)))))
+                    (!loop i 1 (!len o) 1
+                            (!assign (!index t (!add (!len t) 1)) (!call1 tostring (!index o i))))
+                    (!for (k v) ((!call pairs o))
+                            (!if (!or (!or (!ne (!call1 type k) "number") (!lt k 0)) (!gt k (!len o)))
+                                 (!assign (!index t (!add (!len t) 1)) (!mconcat (!call1 tostring k) ": " (!call1 tostring v)))))
+                    (!return (!mconcat (!or (!and (!or (!eq (!index o 1) "!line") (!eq (!index o 1) "!do")) "\n(") "(") (!call1 tconcat t " ") ")"))) ))
+    (!let op (!call1 setmetatable (
+            "push": (!lambda (self v)
+                    (!assign (!index self (!add (!len self) 1)) v)
+                    (!return self))
+            "addkv": (!lambda (self k v)
+                    (!assign (!index self k) v)
+                    (!return self))
+            ) ("__call": (!lambda (func t)
+                    (!return (!call1 setmetatable t op_mt))) )))
+    (!assign (!index op_mt "__index") op)
+
+    (!let ops_mt ("__tostring": (!lambda (o)
+                    (!let t ())
+                    (!loop i 1 (!len o) 1
+                            (!assign (!index t (!add (!len t) 1)) (!call1 tostring (!index o i))))
+                    (!return (!call1 tconcat t))) ))
+    (!let ops (!call1 setmetatable () ("__call": (!lambda (func t)
+                    (!return (!call1 setmetatable t ops_mt))))))
+
+    (!return ("op": op "ops": ops ))
+
+
+    $ cat homoicon.t
+
+    (!let _ (!call1 (!index tvm "dofile") "homoicon.tp"))
+    (!let op (!index _ "op"))
+    (!let ops (!index _ "ops"))
+    (!let quote (!index tvm "quote"))
+
+    (!let o (!call1 ops (
+        (!call1 op ("!line" 1))
+        (!call1 op ("!call" "print" (!call1 quote "hello")))
+        (!call1 op ("!line" 2))
+        (!call1 op ("!let" "h" (!call1 op ((!call1 quote "no"): 0 (!call1 quote "yes"): 1))))
+        (!call1 op ("!line" 3))
+        (!call1 op ("!let" "a" (!call1 op (0: (!call1 quote "zero") (!call1 quote "one") (!call1 quote "two")))))
+        (!callmeth1 (!call1 op ("!line"))
+                    push 4)
+        (!call1 op ("!let" "h" (!callmeth1 (!call1 op ())
+                                           addkv (!call1 quote "key") (!call1 quote "value"))))
+    )))
+    (!call print o)
+
+
+    $ ./tvmjit homoicon.t
+
+    (!line 1)(!call print "hello")
+    (!line 2)(!let h ("no": 0 "yes": 1))
+    (!line 3)(!let a (0: "zero" "one" "two"))
+    (!line 4)(!let h ("key": "value"))
+
+
+    $ ./tvmjit homoicon.t | ./tvmjit
+    hello
