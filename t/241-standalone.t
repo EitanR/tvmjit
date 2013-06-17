@@ -26,8 +26,8 @@
 (!call diag exe)
 
 (!define f (!call (!index io "open") "hello.tp" "w"))
-(!callmeth f write "\
-(!call print \"Hello World\")\
+(!callmeth f write "
+(!call print \"Hello World\")
 ")
 (!callmeth f close)
 
@@ -42,8 +42,8 @@
 (!callmeth f close)
 
 (!define f (!call (!index io "open") "hello.lua" "w"))
-(!callmeth f write "\
-print [[Hello World]]\
+(!callmeth f write "
+print [[Hello World]]
 ")
 (!callmeth f close)
 (!call execute (!concat exe " -b hello.lua hello.tpc"))

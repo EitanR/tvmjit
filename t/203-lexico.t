@@ -56,7 +56,7 @@
 (!call contains msg ": unfinished string near")
 
 (!define (f msg) ((!call load "(!let a \" unfinished string\\\n")))
-(!call contains msg ": unfinished string near")
+(!call contains msg ": invalid escape sequence near '\"")
 
 (!define (f msg) ((!call load "(!let a \" unfinished string\\")))
 (!call contains msg ": unfinished string near")

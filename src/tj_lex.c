@@ -146,10 +146,6 @@ static void read_string(LexState *ls)
     case END_OF_STREAM:
       lj_lex_error(ls, TK_eof, LJ_ERR_XSTR);
       continue;
-    case '\n':
-    case '\r':
-      lj_lex_error(ls, TK_string, LJ_ERR_XSTR);
-      continue;
     case '\\': {
       int c = next(ls);  /* Skip the '\\'. */
       switch (c) {
@@ -203,7 +199,6 @@ static void read_string(LexState *ls)
 	  c = 0x80 | (c & 0x3f);
 	}
 	break;
-      case '\n': case '\r': save(ls, '\n'); inclinenumber(ls); continue;
       case '\\': case '\"': case '\'': break;
       case END_OF_STREAM: continue;
       default:

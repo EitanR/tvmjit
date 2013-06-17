@@ -26,12 +26,12 @@
 (!call plan 5)
 
 (!define f (!call open "lib1.tp" "w"))
-(!callmeth f write "\
-(!assign norm (!lambda (x y)\
-                (!return (!pow (!add (!pow x 2) (!pow y 2)) 0.5))))\
-\
-(!assign twice (!lambda (x)\
-                (!return (!mul 2 x))))\
+(!callmeth f write "
+(!assign norm (!lambda (x y)
+                (!return (!pow (!add (!pow x 2) (!pow y 2)) 0.5))))
+
+(!assign twice (!lambda (x)
+                (!return (!mul 2 x))))
 ")
 (!callmeth f close)
 

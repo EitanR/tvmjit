@@ -70,14 +70,14 @@
                       "function collectgarbage (invalid)")
 
 (!define f (!call open "lib1.lua" "w"))
-(!callmeth f write "\
-function norm (x, y)\
-    return (x^2 + y^2)^0.5\
-end\
-\
-function twice (x)\
-    return 2*x\
-end\
+(!callmeth f write "
+function norm (x, y)
+    return (x^2 + y^2)^0.5
+end
+
+function twice (x)
+    return 2*x
+end
 ")
 (!callmeth f close)
 (!call dofile "lib1.lua")
@@ -123,10 +123,10 @@ end\
 (!call is f !nil "mode")
 
 (!define f (!call open "foo.lua" "w"))
-(!callmeth f write "\
-function foo (x)\
-    return x\
-end\
+(!callmeth f write "
+function foo (x)
+    return x
+end
 ")
 (!callmeth f close)
 (!define f (!call loadfile "foo.lua"))

@@ -18,8 +18,8 @@
 (!call ok ffi "ffi loaded")
 (!call type_ok ffi "table")
 
-(!call (!index ffi "cdef") "\
-int printf(const char *fmt, ...);\
+(!call (!index ffi "cdef") "
+int printf(const char *fmt, ...);
 ")
 
 (!call is (!call (!index (!index ffi "C") "printf") "#\tHello %s!\n" "world") 15 "printf")

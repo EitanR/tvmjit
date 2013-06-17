@@ -102,10 +102,10 @@
                 (!assign test_number (!add test_number 1))
                 (!if (!index todo_info test_number)
                      (!call todo (!index todo_info test_number)))
-                (!let code (!mconcat "\
-                    (!let t ((!call (!index string \"match\") \"" target  "\" \"" pattern "\")))\
-                    (!if (!eq (!len t) 0)\
-                         (!return \"nil\")\
+                (!let code (!mconcat "
+                    (!let t ((!call (!index string \"match\") \"" target  "\" \"" pattern "\")))
+                    (!if (!eq (!len t) 0)
+                         (!return \"nil\")
                          (!return (!call (!index table \"concat\") t \"\\t\")))"))
                 (!let (compiled msg) ((!call load code)))
                 (!if (!not compiled)

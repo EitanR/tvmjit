@@ -28,6 +28,10 @@
     "quote\""
     "\x3A"      ; hexadecimal 8-bits character
     "\u20AC"    ; unicode char UTF-8 encoded
+    "
+    multiline
+    string
+    "
 
 #### table
 

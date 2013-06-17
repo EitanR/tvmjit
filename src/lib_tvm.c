@@ -60,8 +60,10 @@ LJLIB_CF(tvm_quote)
   luaL_addchar(&b, '"');
   while (s < e) {
     uint32_t c = uchar(*s);
-    if (c == '"' || c == '\\' || (c == '\n' && len > 32)) {
+    if (c == '"' || c == '\\') {
       luaL_addchar(&b, '\\');
+      luaL_addchar(&b, c);
+    } else if (c == '\n' && len > 32) {
       luaL_addchar(&b, c);
     } else if (c < ' ') {
       uint32_t h = c >> 4;

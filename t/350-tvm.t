@@ -30,8 +30,7 @@
 
 (!call is (!call escape "a(b:c)d e") "a\\(b\\:c\\)d\\ e")
 
-(!call is (!call quote "a string with \"quotes\" and \n new line") "\"a string with \\\"quotes\\\" and \\\
- new line\"" "function quote")
+(!call is (!call quote "a string with \"quotes\" and \n new line") "\"a string with \\\"quotes\\\" and \n new line\"" "function quote")
 
 (!call is (!call quote "a string with \b and \b2") "\"a string with \\x08 and \\x082\"")
 
@@ -62,12 +61,12 @@
 
 
 (!define f (!call open "lib1.tp" "w"))
-(!callmeth f write "\
-(!assign norm (!lambda (x y)\
-                (!return (!pow (!add (!pow x 2) (!pow y 2)) 0.5))))\
-\
-(!assign twice (!lambda (x)\
-                (!return (!mul 2 x))))\
+(!callmeth f write "
+(!assign norm (!lambda (x y)
+                (!return (!pow (!add (!pow x 2) (!pow y 2)) 0.5))))
+
+(!assign twice (!lambda (x)
+                (!return (!mul 2 x))))
 ")
 (!callmeth f close)
 (!call dofile "lib1.tp")
@@ -88,9 +87,9 @@
                       "function dofile (syntax error)")
 (!call unlink "foo.tp") ; clean up
 
-(!define t ( "\
-(!assign bar (!lambda (x)\
-                (!return x)))\
+(!define t ( "
+(!assign bar (!lambda (x)
+                (!return x)))
 "))
 (!assign i 0)
 (!let reader (!lambda ()
@@ -105,9 +104,9 @@
 (!call is (!call bar "ok") "ok")
 (!assign bar !nil)
 
-(!define t ("\
-(!assign baz (!lambda (x)\
-                (!return x)))\
+(!define t ("
+(!assign baz (!lambda (x)
+                (!return x)))
 "))
 (!assign i -1)
 (!let reader (!lambda ()
