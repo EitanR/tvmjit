@@ -203,11 +203,6 @@ static void read_string(LexState *ls)
 	  c = 0x80 | (c & 0x3f);
 	}
 	break;
-      case 'z':  /* Skip whitespace. */
-	next(ls);
-	while (lj_char_isspace(ls->current))
-	  if (currIsNewline(ls)) inclinenumber(ls); else next(ls);
-	continue;
       case '\n': case '\r': save(ls, '\n'); inclinenumber(ls); continue;
       case '\\': case '\"': case '\'': break;
       case END_OF_STREAM: continue;
