@@ -263,7 +263,7 @@ like `string.char` but returns a string which is the concatenation of the UTF-8 
 
 Here, an example of code generation library :
 
-    $ cat ost.tp
+`$ cat ost.tp`
 
     (!let pairs pairs)
     (!let setmetatable setmetatable)
@@ -308,7 +308,7 @@ Here, an example of code generation library :
     (!return ("op": op "ops": ops ))
 
 
-    $ cat ost.t
+`$ cat ost.t`
 
     (!let _ (!call1 (!index tvm "dofile") "ost.tp"))
     (!let op (!index _ "op"))
@@ -332,7 +332,7 @@ Here, an example of code generation library :
     (!call print o)
 
 
-    $ ./tvmjit ost.t
+`$ ./tvmjit ost.t`
 
     (!line 1)(!call print "hello")
     (!line 2)(!let h ("no": 0 "yes": 1))
@@ -340,6 +340,7 @@ Here, an example of code generation library :
     (!line 4)(!let h ("key": "value"))
     (!line 5)(!call print (!index h "key"))
 
-    $ ./tvmjit ost.t | ./tvmjit
+`$ ./tvmjit ost.t | ./tvmjit`
+
     hello
     value
