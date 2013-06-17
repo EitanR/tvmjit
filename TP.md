@@ -255,11 +255,11 @@ so `tvm.unpack(t)` is equivalent to `unpack(t or {})`.
 
 like `string.char` but returns a string which is the concatenation of the UTF-8 representation of each integer.
 
-## Homoiconicity
+## Code Generation
 
-An example of homoicon library :
+Here, an example of code generation library :
 
-    $ cat homoicon.tp
+    $ cat ost.tp
 
     (!let pairs pairs)
     (!let setmetatable setmetatable)
@@ -293,15 +293,20 @@ An example of homoicon library :
                     (!loop i 1 (!len o) 1
                             (!assign (!index t (!add (!len t) 1)) (!call1 tostring (!index o i))))
                     (!return (!call1 tconcat t))) ))
-    (!let ops (!call1 setmetatable () ("__call": (!lambda (func t)
+    (!let ops (!call1 setmetatable (
+            "push": (!lambda (self v)
+                    (!assign (!index self (!add (!len self) 1)) v)
+                    (!return self))
+            ) ("__call": (!lambda (func t)
                     (!return (!call1 setmetatable t ops_mt))))))
+    (!assign (!index ops_mt "__index") ops)
 
     (!return ("op": op "ops": ops ))
 
 
-    $ cat homoicon.t
+    $ cat ost.t
 
-    (!let _ (!call1 (!index tvm "dofile") "homoicon.tp"))
+    (!let _ (!call1 (!index tvm "dofile") "ost.tp"))
     (!let op (!index _ "op"))
     (!let ops (!index _ "ops"))
     (!let quote (!index tvm "quote"))
@@ -318,16 +323,19 @@ An example of homoicon library :
         (!call1 op ("!let" "h" (!callmeth1 (!call1 op ())
                                            addkv (!call1 quote "key") (!call1 quote "value"))))
     )))
+    (!callmeth o push (!call1 op ("!line" 5)))
+    (!callmeth o push (!call1 op ("!call" "print" (!call1 op ("!index" "h" (!call1 quote "key"))))))
     (!call print o)
 
 
-    $ ./tvmjit homoicon.t
+    $ ./tvmjit ost.t
 
     (!line 1)(!call print "hello")
     (!line 2)(!let h ("no": 0 "yes": 1))
     (!line 3)(!let a (0: "zero" "one" "two"))
     (!line 4)(!let h ("key": "value"))
+    (!line 5)(!call print (!index h "key"))
 
-
-    $ ./tvmjit homoicon.t | ./tvmjit
+    $ ./tvmjit ost.t | ./tvmjit
     hello
+    value
