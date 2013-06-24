@@ -9,7 +9,6 @@ do -- mop
 local assert = assert
 local debug = debug
 local error = error
-local next = next
 local pairs = pairs
 local rawget = rawget
 local rawset = rawset
@@ -19,32 +18,6 @@ local tonumber = tonumber
 local tostring = tostring
 local type = type
 local _G = _G
-
-local stdout = io.stdout
-local stderr = io.stderr
-
-local function print (...)
-    local a = {...}
-    for i = 1, #a do
-        stdout:write(a[i]:str())
-    end
-end
-
-local function say (...)
-    local a = {...}
-    for i = 1, #a do
-        stdout:write(a[i]:str())
-    end
-    stdout:write"\n"
-end
-
-local function note (...)
-    local a = {...}
-    for i = 1, #a do
-        stderr:write(a[i]:str())
-    end
-    stderr:write"\n"
-end
 
 
 local function argerror (caller, narg, extramsg)
@@ -100,9 +73,8 @@ function uml2dot (opt)
                 end
             end
             out[#out+1] = '}"];\n'
-            local parents = class._VALUES.parents
-            for i = 1, #parents do
-                local parent = parents[i]
+            local parent = class._VALUES.parent
+            if parent then
                 out[#out+1] = '    "' .. classname .. '" -> "' .. parent._VALUES.name .. '" // extends\n'
                 out[#out+1] = '        [arrowhead = onormal, arrowtail = none, arrowsize = 2.0];\n'
             end
@@ -124,9 +96,9 @@ local function Mu_INIT (obj, class, args)
             obj._VALUES[k] = val
         end
     end
-    local parents = class._VALUES.parents
-    for i = 1, #parents do
-        Mu_INIT(obj, parents[i], args)
+    local parent = class._VALUES.parent
+    if parent then
+        Mu_INIT(obj, parent, args)
     end
 end
 
@@ -142,7 +114,7 @@ end
 
 local p6class; do
 do
-    local function class_add_method (meta, name, func)
+    local function _add_method (meta, name, func)
         checktype('add_method', 2, name, 'string')
         checktype('add_method', 3, func, 'function')
         local methods = meta._VALUES.methods
@@ -152,9 +124,18 @@ do
         methods[name] = func
         meta._VALUES.proto[name] = func
     end
+    local function _new (meta, name, new)
+        checktype('new', 2, name, 'string')
+        local mt = {
+            __tostring = function (o) return o:str() end,
+        }
+        local class = Mu_BUILD(meta, { name = name, mt = mt, _new = new and function () return new end })
+        mt.__index = class._VALUES.proto
+        return setmetatable(class, meta._VALUES.mt)
+    end
 
     local proto = {
-        add_method = class_add_method,
+        add_method = _add_method,
     }
     p6class = {
         _VALUES = {
@@ -162,14 +143,18 @@ do
             proto = proto,
             attributes = {},
             methods = {
-                add_method = class_add_method,
+                add_method = _add_method,
             },
-            parents = {},
             roles = {},
             ISA = { p6class },
+            _new = _new,
+            mt = {
+                __tostring = function (o) return o:str() end,
+            },
         },
     }
     p6class._CLASS = p6class
+    p6class._VALUES.mt.__index = proto
     setmetatable(p6class, {
         __index = p6class._VALUES.proto,
         __tostring = function (o) return o._VALUES.name end,
@@ -177,16 +162,6 @@ do
 end
 
 local how = p6class
-how.add_method(p6class, 'new', function (self, name)
-                local mt = {
-                    __tostring = function (o) return o:str() end,
-                }
-                local class = Mu_BUILD(p6class, { name = name, mt = mt })
-                mt.__index = class._VALUES.proto
-                return setmetatable(class, {
-                        __index = class._VALUES.proto,
-                        __tostring = function (o) return name end,
-                }) end)
 how.add_method(p6class, 'str', function (meta)
                 return meta._VALUES.name end)
 how.add_method(p6class, 'add_attribute', function (meta, attr)
@@ -210,46 +185,30 @@ how.add_attribute(p6class, { name = 'name', default = '<anon>' })
 how.add_attribute(p6class, { name = 'proto', default = function () return {} end })
 how.add_attribute(p6class, { name = 'methods', default = function () return {} end })
 how.add_attribute(p6class, { name = 'attributes', default = function () return {} end })
-how.add_attribute(p6class, { name = 'parents', default = function () return {} end })
+how.add_attribute(p6class, { name = 'parent' })
 how.add_attribute(p6class, { name = 'ISA', default = function (self) return { self } end })
 how.add_attribute(p6class, { name = 'mt' })
+how.add_attribute(p6class, { name = '_new', default = function ()
+                                                        return function (class, args)
+                                                            return setmetatable(Mu_BUILD(class, args), class._VALUES.mt) end
+                                                     end })
+how.add_method(p6class, 'new', function (meta, ...)
+                return meta._VALUES._new(meta, ...) end)
 how.add_method(p6class, 'HOW', function (meta)
                 return p6class._VALUES.proto end)
 how.add_method(p6class, 'add_parent', function (meta, parent)
                 if meta == parent then
                     error("Class '" .. meta:name() .. "' cannot inherit from itself.")
                 end
-                local parents = meta._VALUES.parents
-                for i = 1, #parents do
-                    if parents[i] == parent then
-                        error("Already have " .. parent:name() .. " as a parent class.")
-                    end
+                if meta._VALUES.parent then
+                    error("parent already defined.")
                 end
-                parents[#parents+1] = parent
+                meta._VALUES.parent = parent
                 local ISA = meta._VALUES.ISA
                 ISA[#ISA+1] = parent._VALUES.ISA
-                setmetatable(meta._VALUES.proto, {
-                        __index = function (t, k)
-                            local function search (class)
-                                local parents = class._VALUES.parents
-                                for i = 1, #parents do
-                                    local p = parents[i]
-                                    local v = rawget(p._VALUES.proto, k) or search(p)
-                                    if v then
-                                        return v
-                                    end
-                                end
-                            end -- search
-                            local v = search(meta)
-                            t[k] = v        -- save for next access
-                            return v
-                        end,
-                })
+                setmetatable(meta._VALUES.proto, { __index=parent._VALUES.proto })
                 end)
 _G['NQP::Metamodel::ClassHOW'] = p6class
-how.add_method(p6class, 'can', function (meta, name)
-                return meta._VALUES.proto[name] ~= nil
-                end)
 how.add_method(p6class, 'isa', function (meta, parent)
                 local function walk (types)
                     for i = 1, #types do
@@ -274,8 +233,6 @@ local p6mu = p6class:new('Mu')
 do
 local how = p6class:HOW()
 _G['Mu'] = p6mu
-how.add_method(p6mu, 'new', function (class, args)
-                return setmetatable(Mu_BUILD(class, args), class._VALUES.mt) end)
 how.add_method(p6mu, 'reset', function (self, attrname)
                 self._VALUES[attrname] = nil
                 end)
@@ -285,12 +242,6 @@ how.add_method(p6mu, 'WHAT', function (self)
                 return rawget(self, '_CLASS') end)
 how.add_method(p6mu, 'str', function (self)
                 return self:WHAT()._VALUES.name end)
-how.add_method(p6mu, 'gist', function (self)
-                return self:WHAT()._VALUES.name end)
-how.add_method(p6mu, 'print', function (self)
-                print(self) end)
-how.add_method(p6mu, 'say', function (self)
-                self:gist():say() end)
 end
 
 
@@ -299,26 +250,20 @@ do
 local how = p6class:HOW()
 _G['Any'] = p6any
 how.add_parent(p6any, p6mu)
-how.add_method(p6any, 'can', function (self, name)
-                local class = self:WHAT()
-                return p6class.can(class, name)
-                end)
 how.add_method(p6any, 'isa', function (self, parent)
                 local class = self:WHAT()
                 return p6class.isa(class, parent)
                 end)
-how.add_method(p6any, 'perl', function (self)
-                return self:WHAT().name end)
 how.add_parent(p6class, p6any)
 end
 
-local p6str = p6class:new('str')
+local p6str = p6class:new('str', function (class, str)
+                checktype('new', 1, str, 'string')
+                return str end)
 do
 local find = string.find
 local len = string.len
 local lower = string.lower
-local quote = tvm.quote
-local reverse = string.reverse
 local sub = string.sub
 local upper = string.upper
 local how = p6class:HOW()
@@ -328,9 +273,6 @@ p6str._VALUES.mt = {
 debug.setmetatable('', p6str._VALUES.mt)
 _G['str'] = p6str
 how.add_parent(p6str, p6any)
-how.add_method(p6str, 'new', function (self, str)
-                checktype('new', 1, str, 'string')
-                return str end)
 how.add_method(p6str, 'WHAT', function (self)
                 return p6str end)
 how.add_method(p6str, 'str', function (self)
@@ -338,35 +280,28 @@ how.add_method(p6str, 'str', function (self)
 how.add_method(p6str, 'bool', function (self)
                 return self ~= '' and self ~= '0' end)
 how.add_method(p6str, 'num', function (self)
-                return assert(tonumber(self)) end)
-how.add_method(p6str, 'gist', function (self)
-                return self end)
-how.add_method(p6str, 'perl', function (self)
-                return quote(self) end)
-how.add_method(p6str, 'print', function (self)
-                print(self) end)
-how.add_method(p6str, 'say', function (self)
-                say(self) end)
+                return assert(tonumber(self), "numify failed") end)
 how.add_method(p6str, 'elems', function (self)
                 return len(self) end)
 how.add_method(p6str, 'lc', function (self)
                 return lower(self) end)
 how.add_method(p6str, 'uc', function (self)
                 return upper(self) end)
-how.add_method(p6str, 'reverse', function (self)
-                return reverse(self) end)
 how.add_method(p6str, 'index', function (self, substring, pos)
                 pos = pos or 0
                 checktype('index', 1, substring, 'string')
                 checktype('index', 2, pos, 'number')
-                return find(self, substring, pos+1, true) - 1 end)
+                local r = find(self, substring, pos+1, true)
+                return r and (r - 1) or -1 end)
 how.add_method(p6str, 'substr', function (self, start, length)
                 checktype('substr', 1, start, 'number')
                 checktype('substr', 2, length, 'number')
                 return sub(self, start+1, start+length) end)
 end
 
-local p6bool = p6class:new('bool')
+local p6bool = p6class:new('bool', function (class, bool)
+                checktype('new', 1, bool, 'boolean')
+                return bool end)
 do
 local how = p6class:HOW()
 p6bool._VALUES.mt = {
@@ -376,9 +311,6 @@ p6bool._VALUES.mt = {
 debug.setmetatable(false, p6bool._VALUES.mt)
 _G['bool'] = p6bool
 how.add_parent(p6bool, p6any)
-how.add_method(p6bool, 'new', function (self, bool)
-                checktype('new', 1, bool, 'boolean')
-                return bool end)
 how.add_method(p6bool, 'WHAT', function (self)
                 return p6bool end)
 how.add_method(p6bool, 'str', function (self)
@@ -387,13 +319,10 @@ how.add_method(p6bool, 'bool', function (self)
                 return self end)
 how.add_method(p6bool, 'num', function (self)
                 return self and 1.0 or 0.0 end)
-how.add_method(p6bool, 'gist', function (self)
-                return self:str() end)
-how.add_method(p6bool, 'perl', function (self)
-                return self:str() end)
 end
 
-local p6nil = p6class:new('nil')
+local p6nil = p6class:new('nil', function (class)
+                return nil end)
 do
 local how = p6class:HOW()
 p6nil._VALUES.mt = {
@@ -403,8 +332,6 @@ p6nil._VALUES.mt = {
 debug.setmetatable(nil, p6nil._VALUES.mt)
 _G['nil'] = p6nil
 how.add_parent(p6nil, p6any)
-how.add_method(p6nil, 'new', function ()
-                return nil end)
 how.add_method(p6nil, 'WHAT', function ()
                 return p6nil end)
 how.add_method(p6nil, 'defined', function ()
@@ -415,13 +342,11 @@ how.add_method(p6nil, 'bool', function ()
                 return false end)
 how.add_method(p6nil, 'num', function ()
                 return 0.0 end)
-how.add_method(p6nil, 'gist', function ()
-                return 'Nil' end)
-how.add_method(p6nil, 'perl', function ()
-                return 'Nil' end)
 end
 
-local p6num = p6class:new('num')
+local p6num = p6class:new('num', function (class, num)
+                checktype('new', 1, num, 'number')
+                return num end)
 do
 local how = p6class:HOW()
 p6num._VALUES.mt = {
@@ -430,190 +355,13 @@ p6num._VALUES.mt = {
 debug.setmetatable(0, p6num._VALUES.mt)
 _G['num'] = p6num
 how.add_parent(p6num, p6any)
-how.add_method(p6num, 'new', function (self, num)
-                checktype('new', 1, num, 'number')
-                return num end)
 how.add_method(p6num, 'WHAT', function (self)
                 return p6num end)
 how.add_method(p6num, 'str', function (self)
-                if self ~= self then
-                    return 'NaN'
-                elseif self == 1/0 then
-                    return 'Inf'
-                elseif self == -1/0 then
-                    return '-Inf'
-                else
-                    return tostring(self)
-                end end)
+                return tostring(self) end)
 how.add_method(p6num, 'bool', function (self)
                 return self ~= 0.0 end)
 how.add_method(p6num, 'num', function (self)
-                return self end)
-how.add_method(p6num, 'gist', function (self)
-                return tostring(self) end)
-how.add_method(p6num, 'perl', function (self)
-                return self:str() end)
-end
-
-
-local p6array = p6class:new('Array')
-do
-local how = p6class:HOW()
-_G['Array'] = p6array
-how.add_parent(p6array, p6any)
-p6array._VALUES.mt = {
-        __index = function (t, k)
-            if type(k) == 'number' then
-                if k < 0 then k = t.n - k end
-                return rawget(t, k)
-            else
-                return p6array._VALUES.proto[k]
-            end
-        end,
-        __newindex = function (t, k, v)
-            if k > t.n then t.n = k end
-            rawset(t, k, v)
-        end,
-        __tostring = function (t)
-            return t:str()
-        end,
-}
-how.add_method(p6array, 'new', function (class, t)
-                checktype('new', 1, t, 'table')
-                t.n = t.n or #t
-                return setmetatable(t, class._VALUES.mt) end)
-how.add_method(p6array, 'WHAT', function (self)
-                return p6array end)
-how.add_method(p6array, 'join', function (self, sep)
-                sep = sep or ' '
-                checktype('join', 1, sep, 'string')
-                local t = {}
-                for i = 1, self.n do t[#t+1] = self[i]:str() end
-                return tconcat(t, sep) end)
-how.add_method(p6array, 'str', function (self)
-                return self:join() end)
-how.add_method(p6array, 'bool', function (self)
-                return self.n ~= 0 end)
-how.add_method(p6array, 'num', function (self)
-                return self.n end)
-how.add_method(p6array, 'gist', function (self)
-                local t = {}
-                for i = 1, self.n do t[#t+1] = self[i]:gist() end
-                return tconcat(t, ' ') end)
-how.add_method(p6array, 'perl', function (self)
-                local t = {}
-                for i = 1, self.n do t[#t+1] = self[i]:perl() end
-                return 'Array.new(' .. tconcat(t, ', ') .. ')' end)
-how.add_method(p6array, 'elems', function (self)
-                return self.n end)
-how.add_method(p6array, 'end', function (self)
-                return self.n - 1 end)
-how.add_method(p6array, 'push', function (self, v)
-                self.n = self.n + 1
-                self[self.n] = v
-                return self end)
-how.add_method(p6array, 'pop', function (self)
-                local v = self[self.n]
-                self.n = self.n - 1
-                return v end)
-how.add_method(p6array, 'unshift', function (self, v)
-                for i = 1, self.n do self[i+1] = self[i] end
-                self[1] = v
-                self.n = self.n + 1
-                return self end)
-how.add_method(p6array, 'shift', function (self)
-                local v = self[1]
-                for i = self.n, 1, -1 do self[i] = self[i+1] end
-                self.n = self.n - 1
-                return v end)
-how.add_method(p6array, 'delete', function (self, ...)
-                local a = {...}
-                for i = 1, #a do self[a[i]] = nil end
-                for i = self.n, 1, -1 do
-                    if self[i] then self.n = i; break end
-                end
-                return self end)
-how.add_method(p6array, 'exists', function (self, ...)
-                local a = {...}
-                for i = 1, #a do
-                    if self[a[i]] == nil then return false end
-                end
-                return true end)
-how.add_method(p6array, 'hash', function (self)
-                local t = {}
-                for i = 1, self.n, 2 do t[self[i]] = self[i+1] end
-                return Hash:new(t) end)
-end
-
-
-local p6hash = p6class:new('Hash')
-do
-local how = p6class:HOW()
-_G['Hash'] = p6hash
-how.add_parent(p6hash, p6any)
-p6hash._VALUES.mt = {
-        __index = p6hash._VALUES.proto,
-        __tostring = function (t)
-            return t:str()
-        end,
-}
-how.add_method(p6hash, 'new', function (class, t)
-                return setmetatable(t, class._VALUES.mt) end)
-how.add_method(p6hash, 'WHAT', function (self)
-                return p6hash end)
-how.add_method(p6hash, 'str', function (self)
-                local t = {}
-                for k, v in pairs(self) do
-                    t[#t+1] = k:str()
-                    t[#t+1] = "\t"
-                    t[#t+1] = v:str()
-                    t[#t+1] = "\n"
-                end
-                t[#t] = nil
-                return tconcat(t) end)
-how.add_method(p6hash, 'bool', function (self)
-                return next(self) ~= nil end)
-how.add_method(p6hash, 'num', function (self)
-                return self:elems() end)
-how.add_method(p6hash, 'gist', function (self)
-                local t = {}
-                for k, v in pairs(self) do
-                    t[#t+1] = k:gist()
-                    t[#t+1] = "\t"
-                    t[#t+1] = v:gist()
-                    t[#t+1] = "\n"
-                end
-                t[#t] = nil
-                return tconcat(t) end)
-how.add_method(p6hash, 'perl', function (self)
-                local t = {}
-                for k, v in pairs(self) do
-                    t[#t+1] = k:perl() .. ' => ' .. v:perl()
-                end
-                return '(' .. tconcat(t, ', ') .. ').hash' end)
-how.add_method(p6hash, 'elems', function (self)
-                local n = 0
-                for _ in pairs(self) do n = n + 1 end
-                return n end)
-how.add_method(p6hash, 'keys', function (self)
-                local t = {}
-                for k in pairs(self) do t[#t+1] = k end
-                return Array:new(t) end)
-how.add_method(p6hash, 'values', function (self)
-                local t = {}
-                for k, v in pairs(self) do t[#t+1] = v end
-                return Array:new(t) end)
-how.add_method(p6hash, 'kv', function (self)
-                local t = {}
-                for k, v in pairs(self) do t[#t+1] = k; t[#t+1] = v end
-                return Array:new(t) end)
-how.add_method(p6hash, 'invert', function (self)
-                local t = {}
-                for k, v in pairs(self) do t[v] = k end
-                return Hash:new(t) end)
-how.add_method(p6hash, 'push', function (self, ...)
-                local t = {...}
-                for i = 1, #t, 2 do self[t[i]] = t[i+1] end
                 return self end)
 end
 
@@ -623,21 +371,22 @@ end -- mop
 do -- Op
 
 local pairs = pairs
+local quote = tvm.quote
 local setmetatable = setmetatable
 local tconcat = table.concat
 local type = type
 local _G = _G
-local how = _G['NQP::Metamodel::ClassHOW']:HOW()
+local p6class = _G['NQP::Metamodel::ClassHOW']
+local how = p6class:HOW()
 
-local op = how:new('TVM::Op')
-_G['TVM::Op'] = op
+local op = p6class:new('TP::Op', function (class, args)
+                return setmetatable({ _VALUES = args, _CLASS = class }, class._VALUES.mt) end )
+_G['TP::Op'] = op
 how.add_parent(op, _G['Any'])
-op._VALUES.mt =  {
+op._VALUES.mt = {
         __index = op._VALUES.proto,
         __tostring = function (o) return o:str() end,
 }
-how.add_method(op, 'new', function (class, args)
-                return setmetatable({ _VALUES = args, _CLASS = class }, class._VALUES.mt) end)
 how.add_method(op, 'str', function (self)
                 local t = {}
                 local values = self._VALUES
@@ -649,10 +398,11 @@ how.add_method(op, 'str', function (self)
                 end
                 for k, v in pairs(values) do
                     if type(k) ~= 'number' or k < 0 or k > #values then
-                        t[#t+1] = k:perl() .. ': ' .. v:str()
+                        t[#t+1] = ((type(k) == 'string') and quote(k) or k:str()) .. ': ' .. v:str()
                     end
                 end
-                return ((values[1] == '!line' or values[1] == '!do') and '\n(' or '(') .. tconcat(t, ' ') .. ')' end)
+                local newline = (values[1] == '!line' or values[1] == '!do') and '\n' or ''
+                return newline .. '(' .. tconcat(t, ' ') .. ')' end)
 how.add_method(op, 'push', function (self, v)
                 local values = self._VALUES
                 values[#values+1] = v
@@ -663,11 +413,25 @@ how.add_method(op, 'addkv', function (self, k, v)
                 return self end)
 
 
-local ops = how:new('TVM::Ops')
-_G['TVM::Ops'] = ops
-how.add_parent(ops, _G['Array'])
+local ops = p6class:new('TP::Ops', function (class, args)
+                return setmetatable({ _VALUES = args, _CLASS = class }, class._VALUES.mt) end )
+_G['TP::Ops'] = ops
+how.add_parent(ops, _G['Any'])
+ops._VALUES.mt = {
+        __index = ops._VALUES.proto,
+        __tostring = function (t) return t:str() end,
+}
 how.add_method(ops, 'str', function (self)
-                return self:join('') end)
+                local values = self._VALUES
+                local t = {}
+                for i = 1, #values do
+                    t[#t+1] = values[i]:str()
+                end
+                return tconcat(t) end)
+how.add_method(ops, 'push', function (self, v)
+                local values = self._VALUES
+                values[#values+1] = v
+                return self end)
 
 end -- Op
 
@@ -683,30 +447,25 @@ local tconcat = table.concat
 local type = type
 local _G = _G
 
-local top = _G['TVM::Op']
-local tops = _G['TVM::Ops']
-local how = _G['NQP::Metamodel::ClassHOW']:HOW()
+local top = _G['TP::Op']
+local tops = _G['TP::Ops']
+local p6class = _G['NQP::Metamodel::ClassHOW']
+local how = p6class:HOW()
 
-local ast = how:new('TVM::AST')
-_G['TVM::AST'] = ast
+local ast = p6class:new('TP::AST', function () error("abstract class") end)
+_G['TP::AST'] = ast
 how.add_parent(ast, _G['Any'])
 how.add_attribute(ast, { name = 'lineno', type = num })
 how.add_attribute(ast, { name = 'named', type = str })  -- SpecialArg
 how.add_attribute(ast, { name = 'slurpy', type = bool })  -- SpecialArg
 --how.add_attribute(ast, { name = 'flat', type = bool })  -- SpecialArg
-how.add_method(ast, 'new', function (class, args)
-                local obj = Mu.new(class, args)
-                for i = 1, #args do
-                    obj[i] = args[i]
-                end
-                return obj end)
 how.add_method(ast, 'push', function (self, v)
                 self[#self+1] = v
                 end)
 how.add_method(ast, 'str', function (self)
                 local t = {}
                 for k, v in pairs(self._VALUES) do
-                    t[#t+1] = k:str() .. ' => ' .. v:perl()
+                    t[#t+1] = k:str() .. ' => ' .. v:str()
                 end
                 return self:WHAT()._VALUES.name .. '(' .. tconcat(t, ', ') .. ')'
                 end)
@@ -727,9 +486,17 @@ how.add_method(ast, 'coerce', function (self, op, type, want)
                 end
                 end)
 
+local function new_ast (class, args)
+        local obj = Mu:_new()(class, args)
+        for i = 1, #args do
+            obj[i] = args[i]
+        end
+        return obj
+end
 
-local unit = how:new('TVM::AST::CompUnit')
-_G['TVM::AST::CompUnit'] = unit
+
+local unit = p6class:new('TP::AST::CompUnit', new_ast)
+_G['TP::AST::CompUnit'] = unit
 how.add_parent(unit, ast)
 how.add_attribute(unit, { name = 'filename', type = str })
 how.add_attribute(unit, { name = 'prelude', type = str, default = "; prelude\n" })
@@ -755,8 +522,8 @@ how.add_method(unit, 'as_op', function (self)
                 end)
 
 
-local block = how:new('TVM::AST::Block')
-_G['TVM::AST::Block'] = block
+local block = p6class:new('TP::AST::Block', new_ast)
+_G['TP::AST::Block'] = block
 how.add_parent(block, ast)
 how.add_attribute(block, { name = 'name', type = str })
 how.add_attribute(block, { name = 'blocktype', type = str })
@@ -766,7 +533,7 @@ local function signature (op, params)
                 local lex = tops:new{}
                 for i = 1, #params do
                     local p = params[i]
-                    if p:isa(_G['TVM::AST::Var']) then
+                    if p:isa(_G['TP::AST::Var']) then
                         local name = p:name()
                         if p:slurpy() then
                             local sigil = string.sub(name, 1, 1)
@@ -827,8 +594,8 @@ how.add_method(block, 'as_op', function (self)
                 end)
 
 
-local stmts = how:new('TVM::AST::Stmts')
-_G['TVM::AST::Stmts'] = stmts
+local stmts = p6class:new('TP::AST::Stmts', new_ast)
+_G['TP::AST::Stmts'] = stmts
 how.add_parent(stmts, ast)
 how.add_method(stmts, 'as_op', function (self)
                 local ops = tops:new{}
@@ -839,8 +606,8 @@ how.add_method(stmts, 'as_op', function (self)
                 end)
 
 
-local op = how:new('TVM::AST::Op')
-_G['TVM::AST::Op'] = op
+local op = p6class:new('TP::AST::Op', new_ast)
+_G['TP::AST::Op'] = op
 how.add_parent(op, ast)
 how.add_attribute(op, { name = 'name', type = str })
 how.add_attribute(op, { name = 'op', type = str })
@@ -898,13 +665,13 @@ how.add_method(op, 'as_op', function (self, want)
                     else
                         op1:push(top:new{ '!not', expr:as_op'bool' })
                     end
-                    if _then:isa(_G['TVM::AST::Block']) then
+                    if _then:isa(_G['TP::AST::Block']) then
                         op1:push(_then:as_op())
                     else
                         op1:push(top:new{ '!do', _then:as_op() })
                     end
                     if _else then
-                        if _else:isa(_G['TVM::AST::Block']) then
+                        if _else:isa(_G['TP::AST::Block']) then
                             op1:push(_else:as_op())
                         else
                             op1:push(top:new{ '!do', _else:as_op() })
@@ -1125,7 +892,7 @@ how.add_method(op, 'as_op', function (self, want)
                             ops:push(expr1:as_op())
                             expr1:reset'decl'
                         end
-                        op1 = top:new{ '!assign', expr1:as_op(), expr2:isa(_G['TVM::AST::Var']) and expr2:as_op() or expr2:as_op'Box' }
+                        op1 = top:new{ '!assign', expr1:as_op(), expr2:isa(_G['TP::AST::Var']) and expr2:as_op() or expr2:as_op'Box' }
                     else
                         error("op with name=" .. name)
                     end
@@ -1138,8 +905,8 @@ how.add_method(op, 'as_op', function (self, want)
                 end)
 
 
-local bval = how:new('TVM::AST::BVal')
-_G['TVM::AST::BVal'] = bval
+local bval = p6class:new('TP::AST::BVal', new_ast)
+_G['TP::AST::BVal'] = bval
 how.add_parent(bval, ast)
 how.add_attribute(bval, { name = 'value', type = bool })
 how.add_method(bval, 'as_op', function (self, want)
@@ -1149,8 +916,8 @@ how.add_method(bval, 'as_op', function (self, want)
                 end)
 
 
-local nval = how:new('TVM::AST::NVal')
-_G['TVM::AST::NVal'] = nval
+local nval = p6class:new('TP::AST::NVal', new_ast)
+_G['TP::AST::NVal'] = nval
 how.add_parent(nval, ast)
 how.add_attribute(nval, { name = 'value', type = num })
 how.add_method(nval, 'as_op', function (self, want)
@@ -1160,8 +927,8 @@ how.add_method(nval, 'as_op', function (self, want)
                 end)
 
 
-local sval = how:new('TVM::AST::SVal')
-_G['TVM::AST::SVal'] = sval
+local sval = p6class:new('TP::AST::SVal', new_ast)
+_G['TP::AST::SVal'] = sval
 how.add_parent(sval, ast)
 how.add_attribute(sval, { name = 'value', type = str })
 how.add_method(sval, 'as_op', function (self, want)
@@ -1171,8 +938,8 @@ how.add_method(sval, 'as_op', function (self, want)
                 end)
 
 
-local var = how:new('TVM::AST::Var')
-_G['TVM::AST::Var'] = var
+local var = p6class:new('TP::AST::Var', new_ast)
+_G['TP::AST::Var'] = var
 how.add_parent(var, ast)
 how.add_attribute(var, { name = 'name', type = str })
 how.add_attribute(var, { name = 'scope', type = str })
@@ -1441,9 +1208,10 @@ local infix = P'**' + P'*' + P'/' + P'%' + P'+&' + P'+|' + P'+^' + P'+' + (P'-'*
 local capt_infix = C(infix) * Cp()
 
 
-local how = _G['NQP::Metamodel::ClassHOW']:HOW()
-local parser = how:new('TVM::Parser')
-_G['TVM::Parser'] = parser
+local p6class = _G['NQP::Metamodel::ClassHOW']
+local how = p6class:HOW()
+local parser = p6class:new('TP::Parser::NQP')
+_G['TP::Parser::NQP'] = parser
 how.add_parent(parser, _G['Any'])
 how.add_attribute(parser, { name = 'src', type = str })
 how.add_attribute(parser, { name = 'pos', type = num })
@@ -1451,14 +1219,14 @@ how.add_attribute(parser, { name = 'init' })
 how.add_attribute(parser, { name = 'scope', default = function () return { ['$_']='lexical' } end })
 
 
-local BVal = _G['TVM::AST::BVal']
-local NVal = _G['TVM::AST::NVal']
-local SVal = _G['TVM::AST::SVal']
-local Var = _G['TVM::AST::Var']
-local Op = _G['TVM::AST::Op']
-local Block = _G['TVM::AST::Block']
-local Stmts =  _G['TVM::AST::Stmts']
-local CompUnit =  _G['TVM::AST::CompUnit']
+local BVal = _G['TP::AST::BVal']
+local NVal = _G['TP::AST::NVal']
+local SVal = _G['TP::AST::SVal']
+local Var = _G['TP::AST::Var']
+local Op = _G['TP::AST::Op']
+local Block = _G['TP::AST::Block']
+local Stmts =  _G['TP::AST::Stmts']
+local CompUnit =  _G['TP::AST::CompUnit']
 
 
 how.add_method(parser, 'skip_ws', function (self, pos)
@@ -1798,7 +1566,7 @@ local priority = {
     ['//']    = { 2, 2 },
     ['||']    = { 2, 2 },
     [':=']    = { 1, 1 },
-    ['=']     = { 1, 1 },       -- fails in TVM::AST::Op.as_op()
+    ['=']     = { 1, 1 },       -- fails in TP::AST::Op.as_op()
 }
 
 how.add_method(parser, 'expr', function (self, limit)
@@ -3255,7 +3023,7 @@ local open = io.open
 local print = print
 
 local function compile (s, fname)
-    local parser = _G['TVM::Parser']:new{}
+    local parser = _G['TP::Parser::NQP']:new{}
     return parser:parse(s, fname)
 end
 
