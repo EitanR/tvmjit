@@ -228,7 +228,7 @@ while statement
 
 ## TVM Library
 
-In addition to the Lua standard libraries.
+In addition to the [Lua standard libraries](http://www.lua.org/manual/5.2/manual.html#6).
 
 #### `tvm.dofile ([filename])`
 
@@ -344,3 +344,10 @@ Here, an example of code generation library :
 
     hello
     value
+
+## References
+
+- [Learn Lua in 15 Minutes](http://tylerneylon.com/a/learn-lua)
+- [S-expression](http://en.wikipedia.org/wiki/S-expression)
+- [LuaJIT](http://luajit.org/)
+- [Lua](http://www.lua.org)
