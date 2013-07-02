@@ -112,7 +112,7 @@ end
 
 (!define (f msg) ((!call load "?syntax error?" "errorchunk")))
 (!call is f !nil "function load(syntax error)")
-(!call contains msg "unexpected symbol")
+(!call contains msg "[string ")
 
 (!define (f msg) ((!call load "print 'ok'" "chunk txt" "b")))
 (!call contains  msg "attempt to load chunk with wrong mode")
@@ -176,7 +176,7 @@ end
 
 (!define (f msg) ((!call loadstring "?syntax error?")))
 (!call is f !nil "function loadstring (syntax error)")
-(!call contains msg "unexpected symbol")
+(!call contains msg "[string ")
 
 (!define t ("a" "b" "c"))
 (!define a (!call next t !nil))

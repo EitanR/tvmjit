@@ -7,623 +7,806 @@
 local _G = _G
 local arg = arg
 local assert = assert
-local error = error
-local tonumber = tonumber
-local print = print
 local char = string.char
+local error = error
+local _find = string.find
+local format = string.format
 local quote = tvm.quote
+local setmetatable= setmetatable
+local sub = string.sub
 local tconcat = table.concat
-local peg = require 'lpeg'
-local locale = peg.locale()
-local C = peg.C
-local Cb = peg.Cb
-local Cg = peg.Cg
-local Cmt = peg.Cmt
-local Cp = peg.Cp
-local Cs = peg.Cs
-local P = peg.P
-local R = peg.R
-local S = peg.S
+local tonumber = tonumber
 
-
-local lineno
-local function inc_lineno ()
-    lineno = lineno + 1
-end
-local function inc_lineno2 ()
-    lineno = lineno + 0.5       -- called twice time ???
-end
-local function syntaxerror (err)
-    error(err .. " at " .. lineno)
+local function find (s, patt)
+    return patt ~= '' and _find(s, patt, 1, true)
 end
 
-local bytecode = P"\27"
-local bom = P"\xEF\xBB\xBF"
-local shebang = P'#!' * (P(1) - S"\f\n\r")^0
-local long_string; do
-    local equals = P'=' ^0
-    local open = P'[' * Cg(equals, 'init') * P'[' * (P"\n" / inc_lineno2)^-1
-    local close = P']' * C(equals) * P']'
-    local closeeq = Cmt(close * Cb'init', function (s, i, a, b) return a == b end)
-    long_string = (open * C(((P"\n" / inc_lineno2) + (P(1) - closeeq))^0) * close) / quote
-end
-local ws; do
-    local comment = P'--' * ((long_string / function () return end) + (P(1) - S"\f\n\r"))^0
-    ws = (S" \f\t\r\v" + (P"\n" / inc_lineno) + comment)^0
-end
-local capt_ws = C(ws) * Cp()
+local digit = '0123456789'
+local xdigit = 'ABCDEF'
+            .. 'abcdef' .. digit
+local alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+           .. 'abcdefghijklmnopqrstuvwxyz' .. '_'
+local alnum = alpha .. digit
+local newline = '\n\r'
+local space = ' \f\t\v\n\r'
 
-local ch_ident = R('09', 'AZ', 'az', '__')
-local tok_identifier; do
-    local reserved = {
-        ['and'] = true,
-        ['break'] = true,
-        ['do'] = true,
-        ['else'] = true,
-        ['elseif'] = true,
-        ['end'] = true,
-        ['false'] = true,
-        ['for'] = true,
-        ['function'] = true,
-        ['goto'] = true,
-        ['if'] = true,
-        ['in'] = true,
-        ['local'] = true,
-        ['nil'] = true,
-        ['not'] = true,
-        ['or'] = true,
-        ['repeat'] = true,
-        ['return'] = true,
-        ['then'] = true,
-        ['true'] = true,
-        ['until'] = true,
-        ['while'] = true,
-    }
-    local check_reserved = function (tok)
-        if not reserved[tok] then
-            return tok
-        end
-    end
-    tok_identifier = (R('AZ', 'az', '__') * ch_ident^0) / check_reserved
-end
-local capt_identifier = tok_identifier * Cp()
+local tokens = {
+    ['and'] = true,
+    ['break'] = true,
+    ['do'] = true,
+    ['else'] = true,
+    ['elseif'] = true,
+    ['end'] = true,
+    ['false']= true,
+    ['for'] = true,
+    ['function'] = true,
+    ['goto'] = true,
+    ['if'] = true,
+    ['in'] = true,
+    ['local'] = true,
+    ['nil'] = true,
+    ['not'] = true,
+    ['or'] = true,
+    ['repeat'] = true,
+    ['return'] = true,
+    ['then'] = true,
+    ['true'] = true,
+    ['until'] = true,
+    ['while'] = true,
+}
 
-local tok_number; do
-    local int = locale.digit^1
-    local frac = P'.' * locale.digit^0
-    local sign = S'-+'
-    local exp = S'Ee' * sign^-1 * locale.digit^1
-    local xint = P'0' * S'xX' * locale.xdigit^1
-    local xfrac = P'.' * locale.xdigit^0
-    local xexp = S'Pp' * sign^-1 * locale.digit^1
-    tok_number = (xint * xfrac^-1 * xexp^-1) + (P'-'^-1 * int * frac^-1 * exp^-1)
-end
-local capt_number = C(tok_number) * Cp()
+local L = {}
 
-local tok_string; do
-    local function gsub (patt, repl)
-        return Cs(((patt / repl) + P(1))^0)
-    end
-
-    local special = {
-        ["'"]  = "'",
-        ['"']  = '"',
-        ['\\'] = '\\',
-        ['/']  = '/',
-        ['a']  = "\a",
-        ['b']  = "\b",
-        ['f']  = "\f",
-        ['n']  = "\n",
-        ['r']  = "\r",
-        ['t']  = "\t",
-        ['v']  = "\v",
-    }
-
-    local escape_special = P'\\' * C(S"'\"\\/abfnrtv")
-    local gsub_escape_special = gsub(escape_special, special)
-    local escape_xdigit = P'\\x' * C(locale.xdigit * locale.xdigit)
-    local gsub_escape_xdigit = gsub(escape_xdigit, function (s)
-                                                        return char(tonumber(s, 16))
-                                                   end)
-    local escape_decimal = P'\\' * C(locale.digit * locale.digit^-1 * locale.digit^-1)
-    local gsub_escape_decimal = gsub(escape_decimal, function (s)
-                                                        local n = tonumber(s)
-                                                        if n >= 256 then
-                                                            syntaxerror("decimal escape too large near " .. s)
-                                                        end
-                                                        return char(n)
-                                                     end)
-
-    local unescape = function(str)
-        return gsub_escape_special:match(gsub_escape_xdigit:match(gsub_escape_decimal:match(str)))
-    end
-
-    local zap = (P"\\z" * S"\n\r"^1 * locale.space^1) / ""
-    local ch_sq = zap + P"\\\\" + P"\\'" + (P(1) - P"'" - R'\0\31')
-    local ch_dq = zap + P'\\\\' + P'\\"' + (P(1) - P'"' - R'\0\31')
-    local simple_quote_string = ((P"'" * Cs(ch_sq^0) * P"'") / unescape) / quote
-    local double_quote_string = ((P'"' * Cs(ch_dq^0) * P'"') / unescape) / quote
-    tok_string = simple_quote_string + double_quote_string + long_string
-end
-local capt_string = tok_string * Cp()
-
-
-local not_ch_ident = -ch_ident
-local tok_and = P'and' * not_ch_ident
-local capt_and = C(tok_and) * Cp()
-local tok_break = P'break' * not_ch_ident
-local capt_break = C(tok_break) * Cp()
-local tok_do = P'do' * not_ch_ident
-local capt_do = C(tok_do) * Cp()
-local tok_else = P'else' * not_ch_ident
-local capt_else = C(tok_else) * Cp()
-local tok_elseif = P'elseif' * not_ch_ident
-local capt_elseif = C(tok_elseif) * Cp()
-local tok_end = P'end' * not_ch_ident
-local capt_end = C(tok_end) * Cp()
-local tok_false = P'false' * not_ch_ident
-local capt_false = C(tok_false) * Cp()
-local tok_for = P'for' * not_ch_ident
-local capt_for = C(tok_for) * Cp()
-local tok_function = P'function' * not_ch_ident
-local capt_function = C(tok_function) * Cp()
-local tok_goto = P'goto' * not_ch_ident
-local capt_goto = C(tok_goto) * Cp()
-local tok_if = P'if' * not_ch_ident
-local capt_if = C(tok_if) * Cp()
-local tok_in = P'in' * not_ch_ident
-local capt_in = C(tok_in) * Cp()
-local tok_local = P'local' * not_ch_ident
-local capt_local = C(tok_local) * Cp()
-local tok_nil = P'nil' * not_ch_ident
-local capt_nil = C(tok_nil) * Cp()
-local tok_not = P'not' * not_ch_ident
-local capt_not = C(tok_not) * Cp()
-local tok_or = P'or' * not_ch_ident
-local capt_or = C(tok_or) * Cp()
-local tok_repeat = P'repeat' * not_ch_ident
-local capt_repeat = C(tok_repeat) * Cp()
-local tok_return = P'return' * not_ch_ident
-local capt_return = C(tok_return) * Cp()
-local tok_then = P'then' * not_ch_ident
-local capt_then = C(tok_then) * Cp()
-local tok_true = P'true' * not_ch_ident
-local capt_true = C(tok_true) * Cp()
-local tok_until = P'until' * not_ch_ident
-local capt_until = C(tok_until) * Cp()
-local tok_while = P'while' * not_ch_ident
-local capt_while = C(tok_while) * Cp()
-
-
-local tok_colon = P':'
-local capt_colon = C(tok_colon) * Cp()
-local tok_comma = P','
-local capt_comma = C(tok_comma) * Cp()
-local tok_dbcolon = P'::'
-local capt_dbcolon = C(tok_dbcolon) * Cp()
-local tok_dot = P'.' * -P'.'
-local capt_dot = C(tok_dot) * Cp()
-local tok_equal = P'='
-local capt_equal = C(tok_equal) * Cp()
-local tok_left_brace = P'{'
-local capt_left_brace = C(tok_left_brace) * Cp()
-local tok_left_bracket = P'[' * -P'[' * -P'='
-local capt_left_bracket = C(tok_left_bracket) * Cp()
-local tok_left_paren = P'('
-local capt_left_paren = C(tok_left_paren) * Cp()
-local tok_right_brace = P'}'
-local capt_right_brace = C(tok_right_brace) * Cp()
-local tok_right_bracket = P']'
-local capt_right_bracket = C(tok_right_bracket) * Cp()
-local tok_right_paren = P')'
-local capt_right_paren = C(tok_right_paren) * Cp()
-local tok_semicolon = P';'
-local capt_semicolon = C(tok_semicolon) * Cp()
-local tok_sel = S'.:'
-local capt_sel = C(tok_sel) * Cp()
-local tok_sep = S',;'
-local capt_sep = C(tok_sep) * Cp()
-local tok_vararg = P'...'
-local capt_vararg = C(tok_vararg) * Cp()
-
-local unopr = tok_not + P'-' + P'#'
-local capt_unopr = C(unopr) * Cp()
-local binopr = P'+' + P'-' + P'*' + P'/' + P'%' + P'^' + P'..' +
-               P'~=' + P'==' + P'<=' + P'<' + P'>=' + P'>' + tok_and + tok_or
-local capt_binopr = C(binopr) * Cp()
-
-
-local statement;
-local expr;
-
-
-local function block_follow (s, pos, withuntil)
-    if P'else':match(s, pos) then
-        return true
-    end
-    if P'elseif':match(s, pos) then
-        return true
-    end
-    if P'end':match(s, pos) then
-        return true
-    end
-    if P(-1):match(s, pos) then
-        return true
-    end
-    if P'until':match(s, pos) then
-        return withuntil
-    end
-    return false
+function L:_resetbuffer ()
+    self.buff = {}
 end
 
-
-local function skip_ws (s, pos)
-    local capt, posn = capt_ws:match(s, pos)
-    return posn
+function L:_next ()
+    self.pos = self.pos + 1
+    self.current = sub(self.z, self.pos, self.pos)
+    return self.current
 end
 
-
-local function statlist (s, pos, buffer)
-    -- statlist -> { stat [`;'] }
-    pos = skip_ws(s, pos)
-    while not block_follow(s, pos, true) do
-        buffer[#buffer+1] = '\n'
-        if tok_return:match(s, pos) then
-            return statement(s, pos, buffer)
-        end
-        pos = statement(s, pos, buffer)
-        pos = skip_ws(s, pos)
-    end
-    return pos
+function L:_save_and_next ()
+    self:_save(self.current)
+    self:_next()
 end
 
-
-local function fieldsel (s, pos, buffer)
-    -- fieldsel -> ['.' | ':'] NAME
-    local capt, posn = capt_sel:match(s, pos)
-    assert(posn)
-    pos = skip_ws(s, posn)
-    capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "<name> expected"
-    end
-    buffer[#buffer+1] = quote(capt)
-    return posn
+function L:_save (c)
+    self.buff[#self.buff+1] = c
 end
 
-
-local function yindex (s, pos, buffer)
-    -- index -> '[' expr ']'
-    local capt, posn = capt_left_bracket:match(s, pos)
-    assert(posn)
-    pos = skip_ws(s, posn)
-    pos = expr(s, pos, buffer, true)
-    capt, posn = capt_right_bracket:match(s, pos)
-    if not posn then
-        syntaxerror "] expected"
-    end
-    return posn
-end
-
-
-local function recfield (s, pos, buffer)
-    -- recfield -> (NAME | `['exp1`]') = exp1
-    local capt, posn = capt_identifier:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '"'
-        buffer[#buffer+1] = capt
-        buffer[#buffer+1] = '"'
-        pos = posn
+function L:_txtToken (token)
+    if     token == '<name>'
+        or token == '<string>'
+        or token == '<number>' then
+        return tconcat(self.buff)
+    elseif token == '' then
+        return '<eof>'
     else
-        pos = yindex(s, pos, buffer)
+        return token
     end
-    pos = skip_ws(s, pos)
-    capt, posn = capt_equal:match(s, pos)
-    if not posn then
-        syntaxerror "= expected"
-    end
-    buffer[#buffer+1] = ': '
-    pos = skip_ws(s, posn)
-    return expr(s, pos, buffer, true)
 end
 
+local function chunkid (source, max)
+    local first = sub(source, 1, 1)
+    if     first == '=' then    -- 'literal' source
+        return sub(source, 2, 1 + max)
+    elseif first == '@' then    -- file name
+        if #source <= max then
+            return sub(source, 2)
+        else
+            return '...' .. sub(source, -max)
+        end
+    else                        -- string; format as [string "source"]
+        source = sub(source, 1, find(source, "\n") - 1)
+        source = (#source < (max - 11)) and source or sub(source, 1, max - 14) .. '...'
+        return '[string "' .. source .. '"]'
+    end
+end
 
+function L:_lexerror (msg, token)
+    msg = format("%s:%d: %s", chunkid(self.source, 60), self.linenumber, msg)
+    if token then
+        msg = format("%s near %s", msg, self:_txtToken(token))
+    end
+    error(msg)
+end
 
-local function listfield (s, pos, buffer, list)
+function L:syntaxerror(msg)
+    self:_lexerror(msg, self.t.token)
+end
+
+function L:_inclinenumber ()
+    local old = self.current
+    assert(find(newline, self.current))
+    self:_next()
+    if find(newline, self.current) and self.current ~= old then
+        self:_next()
+    end
+    self.linenumber = self.linenumber + 1
+end
+
+function L:setinput(z, source)
+    self._lookahead = { token = '' }
+    self.t = { token = '' }
+    self.z = z
+    self.linenumber = 1
+    self.lastline = 1
+    self.source = source
+    self.buff = {}
+    self.pos = 0
+    self:_next()
+end
+
+--[[
+    =======================================================
+    LEXICAL ANALYZER
+    =======================================================
+--]]
+
+function L:_check_next (set)
+    if not find(set, self.current) then
+        return false
+    end
+    self:_save_and_next()
+    return true
+end
+
+function L:_read_numeral (tok)
+    local expo = 'Ee'
+    local first = self.current
+    assert(find(digit, self.current))
+    self:_save_and_next()
+    if first == '0' and self:_check_next('Xx') then
+        expo = 'Pp'
+    end
+    while true do
+        if self:_check_next(expo) then
+            self:_check_next('+-')
+        elseif find(xdigit, self.current) or self.current == '.' then
+            self:_save_and_next()
+        else
+            break
+        end
+    end
+    tok.seminfo = tconcat(self.buff)
+    if not tonumber(tok.seminfo) then
+        self:_lexerror("malformed number", '<number>')
+    end
+end
+
+function L:_skip_sep ()
+    local count = 0
+    local s = self.current
+    assert(s == '[' or s == ']')
+    self:_save_and_next()
+    while self.current == '=' do
+        self:_save_and_next()
+        count = count + 1
+    end
+    return (self.current == s) and count or -count-1
+end
+
+function L:_read_long_string (tok, sep)
+    self:_save_and_next()
+    if find(newline, self.current) then
+        self:_inclinenumber()
+    end
+    while true do
+        if     self.current == '' then
+            self:_lexerror(tok and "unfinished long string" or "unfinished long comment", '')
+        elseif self.current == ']' then
+            if self:_skip_sep() == sep then
+                self:_save_and_next()
+                break
+            end
+        elseif self.current == '\n' or self.current == '\r' then
+            self:_save('\n')
+            self:_inclinenumber()
+            if not tok then
+                self:_resetbuffer()
+            end
+        else
+            if tok then
+                self:_save_and_next()
+            else
+                self:_next()
+            end
+        end
+    end
+    if tok then
+        tok.seminfo = sub(tconcat(self.buff), 3+sep, -3-sep)
+    end
+end
+
+function L:_escerror (c, msg)
+    self:_resetbuffer()
+    self:_save(c)
+    self:_lexerror(msg, '<string>')
+end
+
+function L:_readhexaesc ()
+    local r = ''
+    for i = 1, 2 do
+        local c = self:_next()
+        r = r .. c
+        if not find(xdigit, c) then
+            self:_escerror('x' .. r, "hexadecimal digit expected")
+        end
+    end
+    return char(tonumber(r, 16))
+end
+
+function L:_readdecesc ()
+    local r = ''
+    for i = 1, 3 do
+        local c = self.current
+        if not find(digit, c) then
+            break
+        end
+        r = r .. c
+        self:_next()
+    end
+    r = tonumber(r)
+    if r > 255 then
+        self:_escerror(err, "decimal escape too large")
+    end
+    return char(r)
+end
+
+function L:_read_string (del, tok)
+    self:_save_and_next()
+    while self.current ~= del do
+        if     self.current == '' then
+            self:_lexerror("unfinished string", '')
+        elseif self.current == '\n'
+            or self.current == '\r' then
+            self:_lexerror("unfinished string", '<string>')
+        elseif self.current == '\\' then
+            self:_next()
+            if     self.current == 'a' then
+                self:_next()
+                self:_save('\a')
+            elseif self.current == 'b' then
+                self:_next()
+                self:_save('\b')
+            elseif self.current == 'f' then
+                self:_next()
+                self:_save('\f')
+            elseif self.current == 'n' then
+                self:_next()
+                self:_save('\n')
+            elseif self.current == 'r' then
+                self:_next()
+                self:_save('\r')
+            elseif self.current == 't' then
+                self:_next()
+                self:_save('\t')
+            elseif self.current == 'v' then
+                self:_next()
+                self:_save('\v')
+            elseif self.current == 'x' then
+                local c = self:_readhexaesc()
+                self:_next()
+                self:_save(c)
+            elseif self.current == '\n'
+                or self.current == '\r' then
+                self:_inclinenumber()
+                self:_save('\n')
+            elseif self.current == '\\' then
+                self:_next()
+                self:_save('\\')
+            elseif self.current == '"' then
+                self:_next()
+                self:_save('"')
+            elseif self.current == '\'' then
+                self:_next()
+                self:_save('\'')
+            elseif self.current == '' then
+                -- will raise an error next loop
+            elseif self.current == 'z' then
+                self:_next()
+                while find(space, self.current) do
+                    if find(newline, self.current) then
+                        self:_inclinenumber()
+                    else
+                        self:_next()
+                    end
+                end
+            else
+                if not find(digit, self.current) then
+                    self:_escerror(self.current, "invalid escape sequence")
+                end
+                self:_save(self:_readdecesc())
+            end
+        else
+            self:_save_and_next()
+        end
+    end
+    self:_save_and_next()
+    tok.seminfo = sub(tconcat(self.buff), 2, -2)
+end
+
+function L:_llex (tok)
+    self:_resetbuffer()
+    while true do
+        if     self.current == '\n'
+            or self.current == '\r' then
+            self:_inclinenumber()
+        elseif self.current == ' '
+            or self.current == '\f'
+            or self.current == '\t'
+            or self.current == '\v' then
+            self:_next()
+        elseif self.current == '-' then
+            self:_next()
+            if self.current ~= '-' then
+                return '-'
+            end
+            self:_next()
+            if self.current == '[' then
+                local sep = self:_skip_sep()
+                self:_resetbuffer()
+                if sep >= 0 then
+                    self:_read_long_string(nil, sep)
+                    self:_resetbuffer()
+                else
+                    while not find(newline, self.current) do
+                        self:_next()
+                    end
+                end
+            else
+                while not find(newline, self.current) do
+                    self:_next()
+                end
+            end
+        elseif self.current == '[' then
+            local sep = self:_skip_sep()
+            if sep >= 0 then
+                self:_read_long_string(tok, sep)
+                return '<string>'
+            elseif sep == -1 then
+                return '['
+            else
+                self:_lexerror("invalid long string delimiter", '<string>')
+            end
+        elseif self.current == '=' then
+            self:_next()
+            if self.current ~= '=' then
+                return '='
+            else
+                self:_next()
+                return '=='
+            end
+        elseif self.current == '<' then
+            self:_next()
+            if self.current ~= '=' then
+                return '<'
+            else
+                self:_next()
+                return '<='
+            end
+        elseif self.current == '>' then
+            self:_next()
+            if self.current ~= '=' then
+                return '>'
+            else
+                self:_next()
+                return '>='
+            end
+        elseif self.current == '~' then
+            self:_next()
+            if self.current ~= '=' then
+                return '~'
+            else
+                self:_next()
+                return '~='
+            end
+        elseif self.current == ':' then
+            self:_next()
+            if self.current ~= ':' then
+                return ':'
+            else
+                self:_next()
+                return '::'
+            end
+        elseif self.current == '"'
+            or self.current == '\'' then
+            self:_read_string(self.current, tok)
+            return '<string>'
+        elseif self.current == '.' then
+            self:_save_and_next()
+            if self:_check_next('.') then
+                if self:_check_next('.') then
+                    return '...'
+                else
+                    return '..'
+                end
+            end
+            if not find(digit, self.current) then
+                return '.'
+            else
+                self:_read_numeral(tok)
+                return '<number>'
+            end
+        elseif self.current == '' then
+            return ''
+        elseif find(digit, self.current) then
+            self:_read_numeral(tok)
+            return '<number>'
+        else
+            if find(alpha, self.current) then
+                repeat
+                    self:_save_and_next()
+                until not find(alnum, self.current)
+                tok.seminfo = tconcat(self.buff)
+                if tokens[tok.seminfo] then
+                    return tok.seminfo
+                else
+                    return '<name>'
+                end
+            else
+                local c = self.current
+                self:_next()
+                return c
+            end
+        end
+    end
+end
+
+function L:next ()
+    self.lastline = self.linenumber
+    if self._lookahead.token ~= '' then
+        self.t = self._lookahead
+        self._lookahead = { token = '' }
+    else
+        self.t.token = self:_llex(self.t)
+    end
+end
+
+function L:lookahead ()
+    assert(self._lookahead.token == '')
+    self._lookahead.token = self:_llex(self._lookahead)
+    return self._lookahead.token
+end
+
+function L:BOM ()
+    -- UTF-8 BOM
+    if self.current == char(0xEF) then
+        self:_next()
+        if self.current == char(0xBB) then
+            self:_next()
+            if self.current == char(0xBF) then
+                self:_next()
+            end
+        end
+    end
+end
+
+function L:shebang ()
+    self:BOM()
+    if self.current == '#' then
+        while self.current ~= '\n' do
+            self:_next()
+        end
+        self:_inclinenumber()
+    end
+end
+
+local P = setmetatable({}, { __index=L })
+
+function P:error_expected (token)
+    self:syntaxerror(token .. " expected")
+end
+
+function P:testnext (c)
+    if self.t.token == c then
+        self:next()
+        return true
+    else
+        return false
+    end
+end
+
+function P:check (c)
+    if self.t.token ~= c then
+        self:error_expected(c)
+    end
+end
+
+function P:checknext (c)
+    self:check(c)
+    self:next()
+end
+
+function P:check_match (what, who, where)
+    if not self:testnext(what) then
+        if where == self.linenumber then
+            self:error_expected(what)
+        else
+            self:syntaxerror(format("%s expected (to close %s at line %d)", what, who, where))
+        end
+    end
+end
+
+function P:str_checkname ()
+    self:check('<name>')
+    local name = self.t.seminfo
+    self:next()
+    return name
+end
+
+--[[
+    ============================================================
+    GRAMMAR RULES
+    ============================================================
+--]]
+
+function P:block_follow (withuntil)
+    if     self.t.token == 'else'
+        or self.t.token == 'elseif'
+        or self.t.token == 'end'
+        or self.t.token == '' then
+        return true
+    elseif self.t.token == 'until' then
+        return withuntil
+    else
+        return false
+    end
+end
+
+function P:statlist ()
+    -- statlist -> { stat [`;'] }
+    while not self:block_follow(true) do
+        self.out[#self.out+1] = '\n'
+        if self.t.token == 'return' then
+            self:statement()
+            return
+        end
+        self:statement()
+    end
+end
+
+function P:fieldsel ()
+    -- fieldsel -> ['.' | ':'] NAME
+    self:next()
+    self.out[#self.out+1] = quote(self:str_checkname())
+end
+
+function P:yindex ()
+    -- index -> '[' expr ']'
+    self:next()
+    self:expr(true)
+    self:checknext(']')
+end
+
+function P:recfield ()
+    -- recfield -> (NAME | `['exp1`]') = exp1
+    if self.t.token == '<name>' then
+        self.out[#self.out+1] = quote(self:str_checkname())
+    else
+        self:yindex()
+    end
+    self:checknext('=')
+    self.out[#self.out+1] = ': '
+    self:expr(true)
+end
+
+function P:listfield (list)
     -- listfield -> exp
     if #list == 0 then
         list[1] = true
     end
-    return expr(s, pos, buffer)
+    self:expr()
 end
 
-
-local function field (s, pos, buffer, list)
+function P:field (list)
     -- field -> listfield | recfield
-    local capt, posn = capt_identifier:match(s, pos)
-    if posn then
-        if (ws * tok_equal):match(s, posn) then
-            return recfield(s, pos, buffer)
+    if     self.t.token == '<name>' then
+        if self:lookahead() ~= '=' then
+            self:listfield(list)
         else
-            return listfield(s, pos, buffer, list)
+            self:recfield()
         end
+    elseif self.t.token == '[' then
+        self:recfield()
+    else
+        self:listfield(list)
     end
-    if tok_left_bracket:match(s, pos) then
-        return recfield(s, pos, buffer)
-    end
-    return listfield(s, pos, buffer, list)
 end
 
-
-local function constructor (s, pos, buffer)
+function P:constructor ()
     -- constructor -> '{' [ field { sep field } [sep] ] '}'
-    local capt, posn = capt_left_brace:match(s, pos)
-    if not posn then
-        syntaxerror "{ expected"
-    end
-    buffer[#buffer+1] = '('
-    pos = skip_ws(s, posn)
+    local line = self.linenumber
+    self:checknext('{')
+    self.out[#self.out+1] = '('
     local list = {}
     repeat
-        if tok_right_brace:match(s, pos) then
+        if self.t.token == '}' then
             break
         end
-        pos = field(s, pos, buffer, list)
-        pos = skip_ws(s, pos)
-        capt, posn = capt_sep:match(s, pos)
-        if posn then
-            buffer[#buffer+1] = ' '
-            pos = skip_ws(s, posn)
+        self:field(list)
+        if self.t.token == ',' or self.t.token == ';' then
+            self.out[#self.out+1] = ' '
         end
-    until not posn
-    capt, posn = capt_right_brace:match(s, pos)
-    if not posn then
-        syntaxerror "} expected"
-    end
-    buffer[#buffer+1] = ')'
-    return posn
+    until not (self:testnext(',') or self:testnext(';'))
+    self:check_match('}', '{', line)
+    self.out[#self.out+1] = ')'
 end
 
-
-local function parlist (s, pos, buffer, ismethod)
+function P:parlist (ismethod)
     -- parlist -> [ param { `,' param } ]
     -- param -> NAME | `...'
     if ismethod then
-        buffer[#buffer+1] = 'self'
+        self.out[#self.out+1] = 'self'
     end
-    if not tok_right_paren:match(s, pos) then
+    if self.t.token ~= ')' then
         if ismethod then
-            buffer[#buffer+1] = ' '
+            self.out[#self.out+1] = ' '
         end
         repeat
-            local capt, posn = capt_identifier:match(s, pos)
-            if posn then
-                buffer[#buffer+1] = capt
-                pos = posn
+            if self.t.token == '<name>' then
+                self.out[#self.out+1] = self.t.seminfo
+                self:next()
+            elseif self.t.token == '...' then
+                self:next()
+                self.out[#self.out+1] = '!vararg'
+                break
             else
-                capt, posn = capt_vararg:match(s, pos)
-                if posn then
-                    buffer[#buffer+1] = '!vararg'
-                    return posn
-                else
-                    syntaxerror "<name> or '...' expected"
-                end
+                self:syntaxerror("<name> or '...' expected")
             end
-            pos = skip_ws(s, pos)
-            capt, posn = capt_comma:match(s, pos)
-            if posn then
-                buffer[#buffer+1] = ' '
-                pos = skip_ws(s, posn)
+            if self.t.token == ',' then
+                self.out[#self.out+1] = ' '
             end
-        until not posn
+        until not self:testnext(',')
     end
-    return pos
 end
 
-
-local function body (s, pos, buffer, ismethod)
+function P:body (ismethod, line)
     -- body ->  `(' parlist `)' block END
-    local capt, posn = capt_left_paren:match(s, pos)
-    if not posn then
-        syntaxerror "( expected"
-    end
-    buffer[#buffer+1] = '('
-    pos = skip_ws(s, posn)
-    pos = parlist(s, pos, buffer, ismethod)
-    pos = skip_ws(s, pos)
-    capt, posn = capt_right_paren:match(s, pos)
-    if not posn then
-        syntaxerror ") expected"
-    end
-    buffer[#buffer+1] = ')'
-    pos = statlist(s, posn, buffer)
-    pos = skip_ws(s, pos)
-    capt, posn = capt_end:match(s, pos)
-    if not posn then
-        syntaxerror "'end' expected"
-    end
-    buffer[#buffer+1] = ')'
-    return posn
+    local line = self.linenumber -- line
+    self:checknext('(')
+    self.out[#self.out+1] = '('
+    self:parlist(ismethod)
+    self:checknext(')')
+    self.out[#self.out+1] = ')'
+    self:statlist()
+    self:check_match('end', 'function', line)
+    self.out[#self.out+1] = ')'
 end
 
-
-local function explist (s, pos, buffer)
+function P:explist ()
     -- explist -> expr { `,' expr }
-    pos = expr(s, pos, buffer)
-    pos = skip_ws(s, pos)
-    local capt, posn = capt_comma:match(s, pos)
-    while posn do
-        buffer[#buffer+1] = ' '
-        pos = skip_ws(s, posn)
-        pos = expr(s, pos, buffer)
-        pos = skip_ws(s, pos)
-        capt, posn = capt_comma:match(s, pos)
+    self:expr()
+    while self:testnext(',') do
+        self.out[#self.out+1] = ' '
+        self:expr()
     end
-    return pos
 end
 
-
-local function funcargs (s, pos, buffer)
-    -- funcargs -> `(' [ explist ] `)'
-    local capt, posn = capt_left_paren:match(s, pos)
-    if posn then
-        pos = skip_ws(s, posn)
-        capt, posn = capt_right_paren:match(s, pos)
-        if posn then
-            return posn
+function P:funcargs (line)
+    if     self.t.token == '(' then
+        -- funcargs -> `(' [ explist ] `)'
+        self:next()
+        if self.t.token ~= ')' then
+            self:explist()
         end
-        pos = explist(s, pos, buffer)
-        capt, posn = capt_right_paren:match(s, pos)
-        if posn then
-            return posn
-        else
-            syntaxerror ") expected"
-        end
+        self:check_match(')', '(', line)
+    elseif self.t.token == '{' then
+        -- funcargs -> constructor
+        self:constructor()
+    elseif self.t.token == '<string>' then
+        -- funcargs -> STRING
+        self.out[#self.out+1] = quote(self.t.seminfo)
+        self:next()
+    else
+        self:syntaxerror("function arguments expected")
     end
-    -- funcargs -> constructor
-    if tok_left_brace:match(s, pos) then
-        return constructor(s, pos, buffer)
-    end
-    -- funcargs -> STRING
-    capt, posn = capt_string:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = capt
-        return posn
-    end
-    syntaxerror "function arguments expected"
 end
 
-
-local function primaryexpr (s, pos, buffer)
+function P:primaryexpr ()
     -- primaryexp -> NAME | '(' expr ')'
-    pos = skip_ws(s, pos)
-    local capt, posn = capt_left_paren:match(s, pos)
-    if posn then
-        pos = expr(s, posn, buffer, true)
-        pos = skip_ws(s, pos)
-        capt, posn = capt_right_paren:match(s, pos)
-        if posn then
-            return posn
-        else
-            syntaxerror ") expected"
-        end
+    if     self.t.token == '(' then
+        local line = self.linenumber
+        self:next()
+        self:expr(true)
+        self:check_match(')', '(', line)
+    elseif self.t.token == '<name>' then
+        self.out[#self.out+1] = self:str_checkname()
+    else
+        self:syntaxerror("unexpected symbol")
     end
-    capt, posn = capt_identifier:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = capt
-        return posn
-    end
-    syntaxerror "unexpected symbol"
 end
 
-
-local function suffixedexpr (s, pos, buffer, one)
+function P:suffixedexp (one)
     -- suffixedexp ->
     --    primaryexp { `.' NAME | `[' exp `]' | `:' NAME funcargs | funcargs }
-    local buf = {}
-    pos = primaryexpr(s, pos, buf)
-    local exp = tconcat(buf)
+    local line = self.linenumber
+    local sav = self.out
+    self.out = {}
+    self:primaryexpr()
+    local out = tconcat(self.out)
     while true do
-        buf = {}
-        pos = skip_ws(s, pos)
-        if tok_dot:match(s, pos) then
-            buf[#buf+1] = '(!index '
-            buf[#buf+1] = exp
-            buf[#buf+1] = ' '
-            pos = fieldsel(s, pos, buf)
-            buf[#buf+1] = ')'
-            exp = tconcat(buf)
-        elseif tok_left_bracket:match(s, pos) then
-            buf[#buf+1] = '(!index '
-            buf[#buf+1] = exp
-            buf[#buf+1] = ' '
-            pos = yindex(s, pos, buf)
-            buf[#buf+1] = ')'
-            exp = tconcat(buf)
-        elseif tok_colon:match(s, pos) then
-            local _, posn = capt_colon:match(s, pos)
+        self.out = {}
+        if     self.t.token == '.' then
+            self.out[#self.out+1] = '(!index '
+            self.out[#self.out+1] = out
+            self.out[#self.out+1] = ' '
+            self:fieldsel()
+            self.out[#self.out+1] = ')'
+            out = tconcat(self.out)
+        elseif self.t.token == '[' then
+            self.out[#self.out+1] = '(!index '
+            self.out[#self.out+1] = out
+            self.out[#self.out+1] = ' '
+            self:yindex()
+            self.out[#self.out+1] = ')'
+            out = tconcat(self.out)
+        elseif self.t.token == ':' then
+            self:next()
             if one then
-                buf[#buf+1] = '(!callmeth1 '
+                self.out[#self.out+1] = '(!callmeth1 '
             else
-                buf[#buf+1] = '(!callmeth '
+                self.out[#self.out+1] = '(!callmeth '
             end
-            buf[#buf+1] = exp
-            buf[#buf+1] = ' '
-            pos = skip_ws(s, posn)
-            local capt, posn = capt_identifier:match(s, pos)
-            if not posn then
-                syntaxerror "<name> expected"
-            end
-            buf[#buf+1] = capt
-            buf[#buf+1] = ' '
-            pos = skip_ws(s, posn)
-            pos = funcargs(s, pos, buf)
-            buf[#buf+1] = ')'
-            exp = tconcat(buf)
-        elseif tok_left_paren:match(s, pos) or tok_left_brace:match(s, pos) or tok_string:match(s, pos) then
+            self.out[#self.out+1] = out
+            self.out[#self.out+1] = ' '
+            self.out[#self.out+1] = self:str_checkname()
+            self.out[#self.out+1] = ' '
+            self:funcargs(line)
+            self.out[#self.out+1] = ')'
+            out = tconcat(self.out)
+        elseif self.t.token == '('
+            or self.t.token == '{'
+            or self.t.token == '<string>' then
             if one then
-                buf[#buf+1] = '(!call1 '
+                self.out[#self.out+1] = '(!call1 '
             else
-                buf[#buf+1] = '(!call '
+                self.out[#self.out+1] = '(!call '
             end
-            buf[#buf+1] = exp
-            buf[#buf+1] = ' '
-            pos = funcargs(s, pos, buf)
-            buf[#buf+1] = ')'
-            exp = tconcat(buf)
+            self.out[#self.out+1] = out
+            self.out[#self.out+1] = ' '
+            self:funcargs(line)
+            self.out[#self.out+1] = ')'
+            out = tconcat(self.out)
         else
-            buffer[#buffer+1] = exp
-            return pos
+            self.out = sav
+            self.out[#self.out+1] = out
+            return
         end
     end
 end
 
-
-local function simpleexpr (s, pos, buffer, one)
+function P:simpleexpr (one)
     -- simpleexp -> NUMBER | STRING | NIL | TRUE | FALSE | ... |
-     --             constructor | FUNCTION body | suffixedexp
-    local capt, posn = capt_number:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = capt
-        return posn
+    --             constructor | FUNCTION body | suffixedexp
+    if     self.t.token == '<number>' then
+        self.out[#self.out+1] = self.t.seminfo
+    elseif self.t.token == '<string>' then
+        self.out[#self.out+1] = quote(self.t.seminfo)
+    elseif self.t.token == 'nil' then
+        self.out[#self.out+1] = '!nil'
+    elseif self.t.token == 'true' then
+        self.out[#self.out+1] = '!true'
+    elseif self.t.token == 'false' then
+        self.out[#self.out+1] = '!false'
+    elseif self.t.token == '...' then
+        self.out[#self.out+1] = '!vararg'
+    elseif self.t.token == '{' then
+        self:constructor()
+        return
+    elseif self.t.token == 'function' then
+        self:next()
+        self.out[#self.out+1] = '(!lambda '
+        self:body(false, self.linenumber)
+        return
+    else
+        self:suffixedexp(one)
+        return
     end
-    capt, posn = capt_string:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = capt
-        return posn
-    end
-    capt, posn = capt_nil:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '!nil'
-        return posn
-    end
-    capt, posn = capt_true:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '!true'
-        return posn
-    end
-    capt, posn = capt_false:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '!false'
-        return posn
-    end
-    capt, posn = capt_vararg:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '!vararg'
-        return posn
-    end
-    if tok_left_brace:match(s, pos) then
-        return constructor(s, pos, buffer)
-    end
-    capt, posn = capt_function:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '(!lambda '
-        pos = skip_ws(s, posn)
-        return body(s, pos, buffer)
-    end
-    return suffixedexpr(s, pos, buffer, one)
+    self:next()
 end
-
 
 local unop = {
     ['not']   = '(!not ',
@@ -666,579 +849,417 @@ local priority = {
     ['or']    = { 1, 1 },
 }
 
-
-function expr (s, pos, buffer, one, limit)
+function P:expr (one, limit)
     -- expr -> (simpleexp | unop expr) { binop expr }
     limit = limit or 0
-    local capt, posn = capt_unopr:match(s, pos)
-    local buf = {}
-    if posn then
-        buf[#buf+1] = unop[capt]
-        pos = skip_ws(s, posn)
-        pos = expr(s, pos, buf, false, 8)      -- UNARY_PRIORITY
-        buf[#buf+1] = ')'
+    local sav = self.out
+    self.out = {}
+    local uop = unop[self.t.token]
+    if uop then
+        self:next()
+        self.out[#self.out+1] = uop
+        self:expr(false, 8)     -- UNARY_PRIORITY
+        self.out[#self.out+1] = ')'
     else
-        pos = simpleexpr(s, pos, buf, one)
+        pos = self:simpleexpr(one)
     end
-    local exp = tconcat(buf)
-    pos = skip_ws(s, pos)
-    capt, posn = capt_binopr:match(s, pos)
-    while posn and priority[capt][1] > limit do
-        buf = { binop[capt], exp, ' ' }
-        pos = skip_ws(s, posn, buf)
-        pos = expr(s, pos, buf, false, priority[capt][2])
-        pos = skip_ws(s, pos)
-        buf[#buf+1] = ')'
-        exp = tconcat(buf)
-        capt, posn = capt_binopr:match(s, pos)
+    local out = tconcat(self.out)
+    local op = binop[self.t.token]
+    local prior = priority[self.t.token]
+    while op and prior[1] > limit do
+        self:next()
+        self.out = { op, out, ' ' }
+        self:expr(false, prior[2])
+        self.out[#self.out+1] = ')'
+        out = tconcat(self.out)
+        op = binop[self.t.token]
+        prior = priority[self.t.token]
     end
-    buffer[#buffer+1] = exp
-    return pos
+    self.out = sav
+    self.out[#self.out+1] = out
 end
 
-
-local function block (s, pos, buffer)
+function P:block ()
     -- block -> statlist
-    local pos = statlist(s, pos, buffer)
-    buffer[#buffer+1] = ')'
-    return pos
+    self:statlist()
+    self.out[#self.out+1] = ')'
 end
 
-
-local function assignment (s, pos, buffer, n)
-    -- assignment -> `,' suffixedexp assignment
-    local capt, posn = capt_comma:match(s, pos)
-    if posn then
+function P:assignment (n, line)
+    if self:testnext(',') then
+        -- assignment -> `,' suffixedexp assignment
         if n == 1 then
-            local var = buffer[#buffer]
-            buffer[#buffer] = '(!line '
-            buffer[#buffer+1] = lineno
-            buffer[#buffer+1] = ')(!massign ('
-            buffer[#buffer+1] = var
+            local var = self.out[#self.out]
+            self.out[#self.out] = '(!line '
+            self.out[#self.out+1] = line
+            self.out[#self.out+1] = ')(!massign ('
+            self.out[#self.out+1] = var
         end
-        buffer[#buffer+1] = ' '
-        pos = skip_ws(s, posn)
-        pos = suffixedexpr(s, pos, buffer)
-        pos = skip_ws(s, pos)
-        return assignment(s, pos, buffer, n + 1)
+        self.out[#self.out+1] = ' '
+        self:suffixedexp()
+        self:assignment(n + 1)
     else
         -- assignment -> `=' explist
-        capt, posn = capt_equal:match(s, pos)
-        if not posn then
-            syntaxerror "= expected"
-        end
+        self:checknext('=')
         if n == 1 then
-            local var = buffer[#buffer]
-            buffer[#buffer] = '(!line '
-            buffer[#buffer+1] = lineno
-            buffer[#buffer+1] = ')(!assign '
-            buffer[#buffer+1] = var
-            buffer[#buffer+1] = ' '
+            local var = self.out[#self.out]
+            self.out[#self.out] = '(!line '
+            self.out[#self.out+1] = line
+            self.out[#self.out+1] = ')(!assign '
+            self.out[#self.out+1] = var
+            self.out[#self.out+1] = ' '
         else
-            buffer[#buffer+1] = ') ('
+            self.out[#self.out+1] = ') ('
         end
-        pos = skip_ws(s, posn)
-        pos = explist(s, pos, buffer)
-        buffer[#buffer+1] = ')'
+        self:explist()
+        self.out[#self.out+1] = ')'
         if n ~= 1 then
-            buffer[#buffer+1] = ')'
+            self.out[#self.out+1] = ')'
         end
-        return pos
     end
 end
 
-
-local function breakstat (s, pos, buffer)
-    local capt, posn = capt_break:match(s, pos)
-    assert(posn)
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!break)'
-    return posn
+function P:breakstat (line)
+    self:next()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!break)'
 end
 
-
-local function gotostat (s, pos, buffer)
-    local capt, posn = capt_goto:match(s, pos)
-    assert(posn)
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!goto '
-    pos = skip_ws(s, posn)
-    capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "<name> expected"
-    end
-    buffer[#buffer+1] = capt
-    buffer[#buffer+1] = ')'
-    return posn
+function P:gotostat (line)
+    self:next()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!goto '
+    self.out[#self.out+1] = self:str_checkname()
+    self.out[#self.out+1] = ')'
 end
 
-
-local function labelstat (s, pos, buffer)
+function P:labelstat (name, line)
     -- label -> '::' NAME '::'
-    local capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "<name> expected"
-    end
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!label '
-    buffer[#buffer+1] = capt
-    buffer[#buffer+1] = ')'
-    pos = skip_ws(s, posn)
-    capt, posn = capt_dbcolon:match(s, pos)
-    if not posn then
-        syntaxerror ":: expected"
-    end
-    return posn
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!label '
+    self.out[#self.out+1] = name
+    self.out[#self.out+1] = ')'
+    self:checknext('::')
 end
 
-
-local function whilestat (s, pos, buffer)
+function P:whilestat (line)
     -- whilestat -> WHILE cond DO block END
-    local capt, posn = capt_while:match(s, pos)
-    assert(posn)
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!while '
-    pos = skip_ws(s, posn)
-    pos = expr(s, pos, buffer, true)
-    buffer[#buffer+1] = '\n'
-    pos = skip_ws(s, pos)
-    capt, posn = capt_do:match(s, pos)
-    if not posn then
-        syntaxerror "do expected"
-    end
-    pos = skip_ws(s, posn)
-    pos = block(s, pos, buffer)
-    pos = skip_ws(s, pos)
-    capt, posn = capt_end:match(s, pos)
-    if not posn then
-        syntaxerror "end expected"
-    end
-    return posn
+    self:next()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!while '
+    self:expr(true)
+    self.out[#self.out+1] = '\n'
+    self:checknext('do')
+    self:block()
+    self:check_match('end', 'while', line)
 end
 
-
-local function repeatstat (s, pos, buffer)
+function P:repeatstat (line)
     -- repeatstat -> REPEAT block UNTIL cond
-    local capt, posn = capt_repeat:match(s, pos)
-    assert(posn)
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!repeat'
-    pos = skip_ws(s, posn)
-    pos = statlist(s, pos, buffer)
-    pos = skip_ws(s, pos)
-    capt, posn = capt_until:match(s, pos)
-    if not posn then
-        syntaxerror "until expected"
-    end
-    pos = skip_ws(s, posn)
-    buffer[#buffer+1] = '\n'
-    pos = expr(s, pos, buffer, true)
-    buffer[#buffer+1] = ')'
-    return pos
+    self:next()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!repeat'
+    self:statlist()
+    self:check_match('until', 'repeat', line)
+    self.out[#self.out+1] = '\n'
+    self:expr(true)
+    self.out[#self.out+1] = ')'
 end
 
-
-local function forbody (s, pos, buffer, name)
+function P:forbody (name)
     -- forbody -> DO block
-    buffer[#buffer+1] = '\n'
-    local capt, posn = capt_do:match(s, pos)
-    if not posn then
-        syntaxerror "do expected"
-    end
+    self.out[#self.out+1] = '\n'
+    self:checknext('do')
     if name then
-        buffer[#buffer+1] = "(!define "
-        buffer[#buffer+1] = name
-        buffer[#buffer+1] = " "
-        buffer[#buffer+1] = name
-        buffer[#buffer+1] = ")"
+        self.out[#self.out+1] = "(!define "
+        self.out[#self.out+1] = name
+        self.out[#self.out+1] = " "
+        self.out[#self.out+1] = name
+        self.out[#self.out+1] = ")"
     end
-    pos = skip_ws(s, posn)
-    return block(s, pos, buffer)
+    self:block()
 end
 
-
-local function fornum (s, pos, buffer, name)
+function P:fornum (name, line)
     -- fornum -> NAME = exp1,exp1[,exp1] forbody
-    local capt, posn = capt_equal:match(s, pos)
-    if not posn then
-        syntaxerror "= expected"
-    end
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!loop '
-    buffer[#buffer+1] = name
-    buffer[#buffer+1] = ' '
-    pos = skip_ws(s, posn)
-    pos = expr(s, pos, buffer, true) -- initial value
-    capt, posn = capt_comma:match(s, pos)
-    if not posn then
-        syntaxerror ", expected"
-    end
-    buffer[#buffer+1] = ' '
-    pos = skip_ws(s, posn)
-    pos = expr(s, pos, buffer, true) -- limit
-    capt, posn = capt_comma:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = ' '
-        pos = skip_ws(s, posn)
-        pos = expr(s, pos, buffer, true) -- optional step
+    self:checknext('=')
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!loop '
+    self.out[#self.out+1] = name
+    self.out[#self.out+1] = ' '
+
+    self:expr(true)     -- initial value
+    self:checknext(',')
+    self.out[#self.out+1] = ' '
+    self:expr(true)     -- limit
+    if self:testnext(',') then
+        self.out[#self.out+1] = ' '
+        self:expr(true) -- optional step
     else
-        buffer[#buffer+1] = ' 1 ' -- default step = 1
+        self.out[#self.out+1] = ' 1 '   -- default step = 1
     end
-    return forbody(s, pos, buffer, name)
+    self:forbody(name)
 end
 
-
-local function forlist (s, pos, buffer, name1)
+function P:forlist (name, line)
     -- forlist -> NAME {,NAME} IN explist forbody
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!for ('
-    buffer[#buffer+1] = name1
-    local capt, posn = capt_comma:match(s, pos)
-    while posn do
-        buffer[#buffer+1] = ' '
-        pos = skip_ws(s, posn)
-        local capt, posnn = capt_identifier:match(s, pos)
-        if not posnn then
-            syntaxerror "<name> expected"
-        end
-        buffer[#buffer+1] = capt
-        pos = skip_ws(s, posnn)
-        capt, posn = capt_comma:match(s, pos)
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!for ('
+    self.out[#self.out+1] = name
+    while self:testnext(',') do
+        self.out[#self.out+1] = ' '
+        self.out[#self.out+1] = self:str_checkname()
     end
-    capt, posn = capt_in:match(s, pos)
-    if not posn then
-        syntaxerror "in expected"
-    end
-    buffer[#buffer+1] = ') ('
-    pos = skip_ws(s, posn)
-    pos = explist(s, pos, buffer)
-    buffer[#buffer+1] = ')'
-    return forbody(s, pos, buffer)
+    self.out[#self.out+1] = ') ('
+    self:checknext('in')
+    line = self.linenumber
+    self:explist()
+    self.out[#self.out+1] = ')'
+    self:forbody()
 end
 
-
-local function forstat (s, pos, buffer)
+function P:forstat (line)
     -- forstat -> FOR (fornum | forlist) END
-    local capt, posn = capt_for:match(s, pos)
-    assert(posn)
-    pos = skip_ws(s, posn)
-    capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "<name> expected"
-    end
-    pos = skip_ws(s, posn)
-    if tok_equal:match(s, pos) then
-        pos = fornum(s, pos, buffer, capt)
-    elseif tok_comma:match(s, pos) or tok_in:match(s, pos) then
-        pos = forlist(s, pos, buffer, capt)
+    self:next()
+    local name = self:str_checkname()
+    if     self.t.token == '=' then
+        self:fornum(name, line)
+    elseif self.t.token == ','
+        or self.t.token == 'in' then
+        self:forlist(name, line)
     else
-        syntaxerror "'=' or 'in' expected"
+        self:syntaxerror("'=' or 'in' expected")
     end
-    pos = skip_ws(s, pos)
-    capt, posn = capt_end:match(s, pos)
-    if not posn then
-        syntaxerror "end expected"
-    end
-    return posn
+    self:check_match('end', 'for', line)
 end
 
-
-local function test_then_block (s, pos, buffer)
+function P:test_then_block ()
     -- test_then_block -> [IF | ELSEIF] cond THEN block
-    local capt, posn = capt_if:match(s, pos)
-    if not posn then
-        capt, posn = capt_elseif:match(s, pos)
-        assert(posn)
-    end
-    buffer[#buffer+1] = '(!if '
-    pos = skip_ws(s, posn)
-    pos = expr(s, pos, buffer, true)
-    buffer[#buffer+1] = '\n'
-    pos = skip_ws(s, pos)
-    capt, posn = capt_then:match(s, pos)
-    if not posn then
-        syntaxerror "then expected"
-    end
-    buffer[#buffer+1] = '(!do'
-    pos = skip_ws(s, posn)
-    return block(s, pos, buffer)
+    self:next()
+    self.out[#self.out+1] = '(!if '
+    self:expr(true)
+    self.out[#self.out+1] = '\n'
+    self:checknext('then')
+    self.out[#self.out+1] = '(!do'
+    self:block()
 end
 
-local function ifstat (s, pos, buffer)
+function P:ifstat (line)
     -- ifstat -> IF cond THEN block {ELSEIF cond THEN block} [ELSE block] END
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')'
-    pos = test_then_block(s, pos, buffer)
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')'
+    self:test_then_block()
     local n = 1
-    while tok_elseif:match(s, pos) do
-        pos = test_then_block(s, pos, buffer)
+    while self.t.token == 'elseif' do
+        self:test_then_block()
         n = n + 1
     end
-    local capt, posn = capt_else:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '(!do'
-        pos = skip_ws(s, posn)
-        pos = block(s, pos, buffer)
+    if self:testnext('else') then
+        self.out[#self.out+1] = '(!do'
+        self:block()
     end
-    capt, posn = capt_end:match(s, pos)
-    if not posn then
-        syntaxerror "end expected"
-    end
+    self:check_match('end', 'if', line)
     for i = 1, n, 1 do
-        buffer[#buffer+1] = ')'
+        self.out[#self.out+1] = ')'
     end
-    return posn
 end
 
-
-local function localfunc (s, pos, buffer)
-    local capt, posn = capt_function:match(s, pos)
-    assert(posn)
-    pos = skip_ws(s, posn)
-    capt, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "<name> expected"
-    end
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!define '
-    buffer[#buffer+1] = capt
-    buffer[#buffer+1] = ')(!assign '
-    buffer[#buffer+1] = capt
-    buffer[#buffer+1] = ' (!lambda '
-    pos = skip_ws(s, posn)
-    pos = body(s, pos, buffer)
-    buffer[#buffer+1] = ')\n'
-    return pos
+function P:localfunc (line)
+    local name = self:str_checkname()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!define '
+    self.out[#self.out+1] = name
+    self.out[#self.out+1] = ')(!assign '
+    self.out[#self.out+1] = name
+    self.out[#self.out+1] = ' (!lambda '
+    self:body(false, self.linenumber)
+    self.out[#self.out+1] = ')\n'
 end
 
-
-local function localstat (s, pos, buffer)
+function P:localstat (line)
     -- stat -> LOCAL NAME {`,' NAME} [`=' explist]
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!define '
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!define '
     local multi = false
-    local capt, posn
     repeat
-        capt, posn = capt_identifier:match(s, pos)
-        if not pos then
-            syntaxerror "<name> expected"
-        end
-        local ident = capt
-        buffer[#buffer+1] = ident
-        pos = skip_ws(s, posn)
-        capt, posn = capt_comma:match(s, pos)
-        if posn then
+        local name = self:str_checkname()
+        self.out[#self.out+1] = name
+        if self.t.token == ',' then
             if not multi then
                 multi = true
-                buffer[#buffer] = '('
-                buffer[#buffer+1] = ident
+                self.out[#self.out] = '('
+                self.out[#self.out+1] = name
             end
-            buffer[#buffer+1] = ' '
-            pos = skip_ws(s, posn)
+            self.out[#self.out+1] = ' '
         end
-    until not posn
+    until not self:testnext(',')
     if multi then
-        buffer[#buffer+1] = ')'
+        self.out[#self.out+1] = ')'
     end
-    capt, posn = capt_equal:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = ' '
+    if self:testnext('=') then
+        self.out[#self.out+1] = ' '
         if multi then
-            buffer[#buffer+1] = '('
+            self.out[#self.out+1] = '('
         end
-        pos = skip_ws(s, posn, buffer)
-        pos = explist(s, pos, buffer)
+        self:explist()
         if multi then
-            buffer[#buffer+1] = ')'
+            self.out[#self.out+1] = ')'
         end
     end
-    buffer[#buffer+1] = ')'
-    return pos
+    self.out[#self.out+1] = ')'
 end
 
-
-local function funcname (s, pos, buffer)
+function P:funcname ()
     -- funcname -> NAME {fieldsel} [`:' NAME]
-    local exp, posn = capt_identifier:match(s, pos)
-    if not posn then
-        syntaxerror "identifier expected"
+    local ismethod = false
+    local name = self:str_checkname()
+    while self.t.token == '.' do
+        local sav = self.out
+        self.out = { '(!index ', name, ' ' }
+        self:fieldsel()
+        self.out[#self.out+1] = ')'
+        name = tconcat(self.out)
+        self.out = sav
     end
-    pos = skip_ws(s, posn)
-    posn = tok_dot:match(s, pos)
-    while posn do
-        local buf = { '(!index ', exp, ' ' }
-        pos = fieldsel(s, pos, buf)
-        buf[#buf+1] = ')'
-        exp = tconcat(buf)
-        pos = skip_ws(s, pos)
-        posn = tok_dot:match(s, pos)
+    if self.t.token == ':' then
+        ismethod = true
+        local sav = self.out
+        self.out = { '(!index ', name, ' ' }
+        self:fieldsel()
+        self.out[#self.out+1] = ')'
+        name = tconcat(self.out)
+        self.out = sav
     end
-    posn = tok_colon:match(s, pos)
-    if posn then
-        local buf = { '(!index ', exp, ' ' }
-        pos = fieldsel(s, pos, buf)
-        buf[#buf+1] = ')'
-        exp = tconcat(buf)
-        pos = skip_ws(s, pos)
-    end
-    buffer[#buffer+1] = exp
-    return pos, posn
+    self.out[#self.out+1] = name
+    return ismethod
 end
 
-
-local function funcstat (s, pos, buffer)
+function P:funcstat (line)
     -- funcstat -> FUNCTION funcname body
-    local capt, posn = capt_function:match(s, pos)
-    assert(posn)
-    pos = skip_ws(s, posn)
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!assign '
-    local posn, ismethod = funcname(s, pos, buffer)
-    buffer[#buffer+1] = ' (!lambda '
-    pos = skip_ws(s, posn)
-    pos = body(s, pos, buffer, ismethod)
-    buffer[#buffer+1] = ')\n'
-    return pos
+    self:next()
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!assign '
+    local ismethod = self:funcname()
+    self.out[#self.out+1] = ' (!lambda '
+    self:body(ismethod, line)
+    self.out[#self.out+1] = ')\n'
 end
 
-
-local function exprstat (s, pos, buffer)
+function P:exprstat (line)
     -- stat -> func | assignment
-    local buf = {}
-    local lineno = lineno
-    pos = suffixedexpr(s, pos, buf)
-    pos = skip_ws(s, pos)
-    if tok_equal:match(s, pos) or tok_comma:match(s, pos) then
-        buffer[#buffer+1] = tconcat(buf)
-        return assignment(s, pos, buffer, 1)
+    local sav = self.out
+    self.out = {}
+    self:suffixedexp()
+    local out = tconcat(self.out)
+    self.out = sav
+    if self.t.token == '=' or self.t.token == ',' then
+        self.out[#self.out+1] = out
+        self:assignment(1, line)
     else
-        buffer[#buffer+1] = '(!line '
-        buffer[#buffer+1] = lineno
-        buffer[#buffer+1] = ')'
-        buffer[#buffer+1] = tconcat(buf)
-        return pos
+        self.out[#self.out+1] = '(!line '
+        self.out[#self.out+1] = line
+        self.out[#self.out+1] = ')'
+        self.out[#self.out+1] = out
     end
 end
 
-
-local function retstat (s, pos, buffer)
+function P:retstat (line)
     -- stat -> RETURN [explist] [';']
-    buffer[#buffer+1] = '(!line '
-    buffer[#buffer+1] = lineno
-    buffer[#buffer+1] = ')(!return '
-    if not block_follow(s, pos, true) and not tok_semicolon:match(s, pos) then
-        pos = explist(s, pos, buffer)
+    self.out[#self.out+1] = '(!line '
+    self.out[#self.out+1] = line
+    self.out[#self.out+1] = ')(!return '
+    if not self:block_follow(true) and self.t.token ~= ';' then
+        self:explist()
     end
-    buffer[#buffer+1] = ')'
-    local capt, posn = capt_semicolon:match(s, pos)
-    if posn then
-        return posn
-    end
-    return pos
+    self.out[#self.out+1] = ')'
+    self:testnext(';')
 end
 
-
-function statement (s, pos, buffer)
-    -- stat -> ';' (empty statement)
-    pos = skip_ws(s, pos)
-    local capt, posn = capt_semicolon:match(s, pos)
-    if posn then
-        return posn
-    end
-    -- stat -> ifstat
-    if tok_if:match(s, pos) then
-        return ifstat(s, pos, buffer)
-    end
-    -- stat -> whilestat
-    if tok_while:match(s, pos) then
-        return whilestat(s, pos, buffer)
-    end
-    -- stat -> DO block END
-    capt, posn = capt_do:match(s, pos)
-    if posn then
-        buffer[#buffer+1] = '(!line '
-        buffer[#buffer+1] = lineno
-        buffer[#buffer+1] = ')(!do'
-        pos = block(s, posn, buffer)
-        capt, posn = capt_end:match(s, pos)
-        if posn then
-            return posn
+function P:statement ()
+    local line = self.linenumber
+    if     self.t.token == ';' then
+        -- stat -> ';' (empty statement)
+        self:next()
+    elseif self.t.token == 'if' then
+        -- stat -> ifstat
+        self:ifstat(line)
+    elseif self.t.token == 'while' then
+        -- stat -> whilestat
+        self:whilestat(line)
+    elseif self.t.token == 'do' then
+        -- stat -> DO block END
+        self:next()
+        self.out[#self.out+1] = '(!line '
+        self.out[#self.out+1] = line
+        self.out[#self.out+1] = ')(!do'
+        self:block()
+        self:check_match('end', 'do', line)
+    elseif self.t.token == 'for' then
+        -- stat -> forstat
+        self:forstat(line)
+    elseif self.t.token == 'repeat' then
+        -- stat -> repeatstat
+        self:repeatstat(line)
+    elseif self.t.token == 'function' then
+        -- stat -> funcstat
+        self:funcstat(line)
+    elseif self.t.token == 'local' then
+        -- stat -> localstat
+        self:next()
+        if self:testnext('function') then
+            self:localfunc(line)
         else
-            syntaxerror "'end' expected"
+            self:localstat(line)
         end
+    elseif self.t.token == '::' then
+        -- stat -> label
+        self:next()
+        self:labelstat(self:str_checkname(), line)
+    elseif self.t.token == 'return' then
+        -- stat -> retstat
+        self:next()
+        self:retstat(line)
+    elseif self.t.token == 'break' then
+        -- stat -> breakstat
+        self:breakstat(line)
+    elseif self.t.token == 'goto' then
+        -- stat -> 'goto' NAME
+        self:gotostat(line)
+    else
+        -- stat -> func | assignment
+        self:exprstat(line)
     end
-    -- stat -> forstat
-    if tok_for:match(s, pos) then
-        return forstat(s, pos, buffer)
-    end
-    -- stat -> repeatstat
-    if tok_repeat:match(s, pos) then
-        return repeatstat(s, pos, buffer)
-    end
-    -- stat -> funcstat
-    if tok_function:match(s, pos) then
-        return funcstat(s, pos, buffer)
-    end
-    -- stat -> localstat
-    capt, posn = capt_local:match(s, pos)
-    if posn then
-        pos = skip_ws(s, posn)
-        if tok_function:match(s, pos) then
-            return localfunc(s, pos, buffer)
-        else
-            return localstat(s, pos, buffer)
-        end
-    end
-    -- stat -> label
-    capt, posn = capt_dbcolon:match(s, pos)
-    if posn then
-        pos = skip_ws(s, posn)
-        return labelstat(s, pos, buffer)
-    end
-    -- stat -> retstat
-    capt, posn = capt_return:match(s, pos)
-    if posn then
-        pos = skip_ws(s, posn)
-        return retstat(s, pos, buffer)
-    end
-    -- stat -> breakstat
-    if tok_break:match(s, pos) then
-        return breakstat(s, pos, buffer)
-    end
-    -- stat -> 'goto' NAME
-    if tok_goto:match(s, pos) then
-        return gotostat(s, pos, buffer)
-    end
-    -- stat -> func | assignment
-    return exprstat(s, pos, buffer)
 end
 
+function P:mainfunc ()
+    self:next()
+    self:statlist()
+    self:check('')
+end
 
 local function translate (s, fname)
-    if bytecode:match(s) then
+    local p = setmetatable({}, { __index=P })
+    p:setinput(s, fname)
+    if p.current == '\x1B' then
         return s
     end
-    local pos = (bom * Cp()):match(s, 1) or 1
-    pos = (shebang * Cp()):match(s, pos) or pos
-    lineno = 1
-    local buffer = { '(!line ', quote(fname), ' ', lineno, ')' }
-    pos = statlist(s, pos, buffer)
-    if not P(-1):match(s, pos) then
-        syntaxerror("<eof> expected at " .. pos)
-    end
-    buffer[#buffer+1] = "\n; end of generation"
-    return tconcat(buffer)
+    p:BOM()
+    p:shebang()
+    p.out = { '(!line ', quote(fname), ' ', p.linenumber, ')' }
+    p:mainfunc()
+    p.out[#p.out+1] = "\n; end of generation"
+    return tconcat(p.out)
 end
 
 _G._COMPILER = translate
@@ -1255,4 +1276,3 @@ if fname then
     print "; bootstrap"
     print(code)
 end
-
