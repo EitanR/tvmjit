@@ -33,13 +33,13 @@
 
 (!call type_ok (!index package "loaders") "table" "table package.loaders")
 
-(!let m (!call require "lpeg"))
-(!call (!index m "locale") () "function require")
-(!call is m (!index (!index package "loaded") "lpeg"))
+(!let m (!call require "linenoise"))
+(!call (!index m "historyadd") "line")
+(!call is m (!index (!index package "loaded") "linenoise"))
 
-(!let p (!call (!index package "searchpath") "lpeg" (!index package "cpath")))
+(!let p (!call (!index package "searchpath") "linenoise" (!index package "cpath")))
 (!call type_ok p "string" "searchpath")
-(!let p (!call (!index package "searchpath") "lpeg" "bad path"))
+(!let p (!call (!index package "searchpath") "linenoise" "bad path"))
 (!call is p !nil)
 
 (!let f (!call (!index io "open") "complex.lua" "w"))
