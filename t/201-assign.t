@@ -12,7 +12,7 @@
 (!let load load)
 (!let print print)
 
-(!call plan 38)
+(!call plan 40)
 
 (!call is b !nil "global variable")
 (!assign b 10)
@@ -97,3 +97,9 @@
 (!call is a 6 "assignment as expression")
 (!call is b 6)
 (!call is b 6)
+
+(!assign a (!do (!define b)(!assign b 3)))
+(!call is a 3 "do as expression")
+
+(!assign a (!do (!let b 2)(!let c 3)(!add b c)))
+(!call is a 5)

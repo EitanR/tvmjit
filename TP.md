@@ -113,6 +113,7 @@ division
 #### `(!do stmt1 ... stmtn)`
 
 block
+(could be used as expression, not like in Lua)
 
 #### `(!eq expr1 expr2)`
 

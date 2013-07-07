@@ -1833,7 +1833,7 @@ static BCReg parse_params(LexState *ls)
 }
 
 /* Forward declaration. */
-static void parse_chunk(LexState *ls);
+static void parse_chunk(LexState *ls, ExpDesc *e);
 
 /* Parse 'lambda' statement. */
 static void parse_lambda (LexState *ls, ExpDesc *e)
@@ -1842,6 +1842,7 @@ static void parse_lambda (LexState *ls, ExpDesc *e)
   FuncState fs, *pfs = ls->fs;
   FuncScope bl;
   GCproto *pt;
+  ExpDesc d;
   ptrdiff_t oldbase = pfs->bcbase - ls->bcstack;
   fs_init(ls, &fs);
   fscope_begin(&fs, &bl, 0);
@@ -1850,7 +1851,7 @@ static void parse_lambda (LexState *ls, ExpDesc *e)
   fs.bcbase = pfs->bcbase + pfs->pc;
   fs.bclim = pfs->bclim - pfs->pc;
   bcemit_AD(&fs, BC_FUNCF, 0, 0);  /* Placeholder. */
-  parse_chunk(ls);
+  parse_chunk(ls, &d);
   pt = fs_finish(ls, (ls->lastline = ls->linenumber));
   pfs->bcbase = ls->bcstack + oldbase;  /* May have been reallocated. */
   pfs->bclim = (BCPos)(ls->sizebcstack - oldbase);
@@ -2388,8 +2389,20 @@ static void parse_block(LexState *ls)
 {
   FuncState *fs = ls->fs;
   FuncScope bl;
+  ExpDesc e;
   fscope_begin(fs, &bl, 0);
-  parse_chunk(ls);
+  parse_chunk(ls, &e);
+  lex_check(ls, ')');
+  fscope_end(fs);
+}
+
+/* Parse a 'do' statement. */
+static void parse_do(LexState *ls, ExpDesc *v)
+{
+  FuncState *fs = ls->fs;
+  FuncScope bl;
+  fscope_begin(fs, &bl, 0);
+  parse_chunk(ls, v);
   lex_check(ls, ')');
   fscope_end(fs);
 }
@@ -2656,7 +2669,7 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 	  parse_cond(ls);
 	  break;
 	case SP_do:
-	  parse_block(ls);
+	  parse_do(ls, v);
 	  break;
 	case SP_define:
 	  parse_let(ls, 0);
@@ -2717,15 +2730,14 @@ static void parse_stmt(LexState *ls, ExpDesc *v)
 }
 
 /* A chunk is a list of statements. */
-static void parse_chunk(LexState *ls)
+static void parse_chunk(LexState *ls, ExpDesc *e)
 {
-  ExpDesc e;
   while (lex_opt(ls, '(')) {
     synlevel_begin(ls);
-    memset(&e, 0, sizeof e);
-    parse_stmt(ls, &e);
-    if (e.k == VCALL)
-      setbc_b(bcptr(ls->fs, &e), 1);  /* No results. */
+    memset(e, 0, sizeof(ExpDesc));
+    parse_stmt(ls, e);
+    if (e->k == VCALL)
+      setbc_b(bcptr(ls->fs, e), 1);  /* No results. */
     lua_assert(ls->fs->framesize >= ls->fs->freereg &&
 	       ls->fs->freereg >= ls->fs->nactvar);
     ls->fs->freereg = ls->fs->nactvar;  /* Free registers after each stmt. */
@@ -2739,6 +2751,7 @@ GCproto *lj_parse(LexState *ls)
   FuncState fs;
   FuncScope bl;
   GCproto *pt;
+  ExpDesc e;
   lua_State *L = ls->L;
 #ifdef LUAJIT_DISABLE_DEBUGINFO
   ls->chunkname = lj_str_newlit(L, "=");
@@ -2757,7 +2770,7 @@ GCproto *lj_parse(LexState *ls)
   fscope_begin(&fs, &bl, 0);
   bcemit_AD(&fs, BC_FUNCV, 0, 0);  /* Placeholder. */
   lj_lex_next(ls);  /* Read-ahead first token. */
-  parse_chunk(ls);
+  parse_chunk(ls, &e);
   if (ls->token != TK_eof)
     err_token(ls, TK_eof);
   pt = fs_finish(ls, ls->linenumber);
